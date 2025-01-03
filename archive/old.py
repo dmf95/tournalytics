@@ -9,17 +9,39 @@ from utils import (
     calculate_outcomes,
     calculate_tournament_duration,
     generate_playoffs_bracket,
-    create_bracket_visualization,
-    plot_bracket,
     load_previous_tournaments,
     save_tournament,
     load_player_data,
+    determine_winner,
 )
 import pandas as pd
 import numpy as np
-import re  # Import regex for extracting numbers
+
+
+# Centralized session state initialization
+def initialize_session_state():
+    defaults = {
+        "tournament_id": None,
+        "tournament_name": "New Tournament",
+        "players": [],
+        "teams": {},
+        "schedule": None,
+        "results": pd.DataFrame(),  # Empty DataFrame
+        "standings": None,
+        "total_duration": 0,
+        "team_management_time": 0,
+        "playoff_results": pd.DataFrame(),  # Empty DataFrame
+        "completed": False,
+    }
+    for key, value in defaults.items():
+        if key not in st.session_state or st.session_state[key] is None:
+            st.session_state[key] = value
 
 def main():
+    # Initialize session state
+    initialize_session_state()
+
+    # App title
     st.title("🎮 Tournalytics 🎮")
 
     # Load player data
@@ -28,7 +50,7 @@ def main():
 
     # Tournament Setup
     st.sidebar.header("Tournament Setup")
-    tournament_name = st.sidebar.text_input("Tournament Name", value="New Tournament")
+    st.session_state["tournament_name"] = st.sidebar.text_input("Tournament Name", value=st.session_state["tournament_name"])
     num_players = st.sidebar.slider("Number of Players", min_value=6, max_value=12, value=6)
     num_consoles = st.sidebar.slider("Number of Consoles", min_value=1, max_value=4, value=2)
     half_duration = st.sidebar.slider("Half Duration (minutes)", min_value=4, max_value=6, value=5)
@@ -39,29 +61,27 @@ def main():
         for player in selected_players
     }
 
+    # Validate player selection
     if len(selected_players) != num_players:
         st.sidebar.error(f"Please select exactly {num_players} players.")
         return
 
+    # Generate tournament schedule
     if st.sidebar.button("Generate Tournament Schedule"):
-        st.session_state.tournament_id = generate_tournament_id()
-        st.session_state.tournament_name = tournament_name
-        st.session_state.players = selected_players
-        st.session_state.teams = team_selection
-        st.session_state.schedule = generate_schedule(st.session_state.players, st.session_state.teams, num_consoles)
-        validation_messages = validate_schedule(st.session_state.schedule, num_consoles)
-        st.session_state.results = pd.DataFrame(st.session_state.schedule)
-        st.session_state.results["Home Goals"] = np.nan
-        st.session_state.results["Away Goals"] = np.nan
-        st.session_state.results["Home xG"] = np.nan
-        st.session_state.results["Away xG"] = np.nan
-
-        # Corrected call to initialize_standings
-        st.session_state.standings = initialize_standings(st.session_state.players, st.session_state.teams)
+        st.session_state["tournament_id"] = generate_tournament_id()
+        st.session_state["players"] = selected_players
+        st.session_state["teams"] = team_selection
+        st.session_state["schedule"] = generate_schedule(selected_players, team_selection, num_consoles)
+        validation_messages = validate_schedule(st.session_state["schedule"], num_consoles)
+        st.session_state["results"] = pd.DataFrame(st.session_state["schedule"])
+        st.session_state["results"]["Home Goals"] = np.nan
+        st.session_state["results"]["Away Goals"] = np.nan
+        st.session_state["results"]["Home xG"] = np.nan
+        st.session_state["results"]["Away xG"] = np.nan
+        st.session_state["standings"] = initialize_standings(selected_players, team_selection)
 
         for player, team in team_selection.items():
-            st.session_state.standings.loc[st.session_state.standings["Player"] == player, "Team"] = team
-        st.session_state.completed = False
+            st.session_state["standings"].loc[st.session_state["standings"]["Player"] == player, "Team"] = team
 
         if validation_messages:
             for message in validation_messages:
@@ -69,30 +89,27 @@ def main():
         else:
             st.info("All scheduling validations passed.")
 
-        total_duration, team_management_time = calculate_tournament_duration(st.session_state.schedule, half_duration)
-        st.session_state.total_duration = total_duration
-        st.session_state.team_management_time = team_management_time
+        total_duration, team_management_time = calculate_tournament_duration(
+            st.session_state["schedule"], half_duration
+        )
+        st.session_state["total_duration"] = total_duration
+        st.session_state["team_management_time"] = team_management_time
 
-
-
-    if "tournament_id" not in st.session_state:
+    # Ensure tournament is initialized
+    if not st.session_state["tournament_id"]:
         st.sidebar.warning("Please generate a tournament schedule to proceed.")
         return
 
-    st.sidebar.write(f"**Tournament ID**: {st.session_state.tournament_id}")
-    st.sidebar.write(f"**Tournament Name**: {st.session_state.tournament_name}")
+    # Sidebar tournament details
+    st.sidebar.write(f"**Tournament ID**: {st.session_state['tournament_id']}")
+    st.sidebar.write(f"**Tournament Name**: {st.session_state['tournament_name']}")
+    st.sidebar.write(f"**Total Duration**: {st.session_state['total_duration']} minutes")
+    st.sidebar.write(f"**Team Management Time**: {st.session_state['team_management_time']} minutes")
 
-    st.sidebar.write(f"**Total Tournament Duration**: {st.session_state.total_duration} minutes (+ {st.session_state.team_management_time} minutes for team management)")
-
-    with st.sidebar.expander("View Previous Tournaments"):
-        previous_tournaments = load_previous_tournaments()
-        if not previous_tournaments.empty:
-            st.dataframe(previous_tournaments)
-        else:
-            st.write("No previous tournaments found.")
-
+    # Tabs for tournament details
     tab1, tab2, tab3, tab4 = st.tabs(["📊 Standings", "📅 League", "🥊 Playoffs", "🏆 Finals"])
 
+    # League Standings
     with tab1:
         st.header("League Standings")
 
@@ -118,6 +135,7 @@ def main():
         # Merge games played count and outcomes into standings
         standings = st.session_state.standings.merge(games_played_count, on="Player", how="left").fillna({"Played": 0})
         standings = standings.merge(outcomes, on="Player", how="left")
+
 
         # Add Playoff Games Played if playoff results exist
         if "playoff_results" in st.session_state and not st.session_state.playoff_results.empty:
@@ -189,7 +207,7 @@ def main():
             )
 
 
-
+    # Match Schedule
     with tab2:
         st.header("Match Schedule")
 
@@ -259,6 +277,11 @@ def main():
                 del st.session_state["playoff_results"]
             st.success("Playoff results cache has been cleared!")
 
+        # Ensure results DataFrame exists and is valid
+        if "results" not in st.session_state or st.session_state.results.empty:
+            st.warning("No results available. Please complete the round-robin stage first.")
+            st.stop()
+
         # Determine the starting Game ID for playoffs
         if "Game #" in st.session_state.results.columns and not st.session_state.results["Game #"].isnull().all():
             last_game_id = (
@@ -288,22 +311,40 @@ def main():
             # Copy playoff results for processing
             playoff_results = st.session_state.playoff_results.copy()
 
-            #TODO: DEUBGGIN Display the playoff results for debugging
+            #TODO: Display the playoff results for debugging
+            #st.subheader("Playoff Bracket")
             #st.dataframe(playoff_results)
 
             # Helper function to determine winner based on cumulative goals and xG
             def determine_winner(matches):
-                home_goals = matches["Home Goals"].sum()
-                away_goals = matches["Away Goals"].sum()
-                home_xg = matches["Home xG"].sum()
-                away_xg = matches["Away xG"].sum()
+                # Calculate cumulative goals for the home player
+                home_player = matches.iloc[0]["Home"]
+                home_goals = matches[matches["Home"] == home_player]["Home Goals"].sum()
+                away_goals = matches[matches["Away"] == home_player]["Away Goals"].sum()
+                total_home_player_goals = home_goals + away_goals
 
-                if home_goals > away_goals:
-                    return matches.iloc[0]["Home"]
-                elif away_goals > home_goals:
-                    return matches.iloc[0]["Away"]
-                else:  # Tie-breaker: Use xG
-                    return matches.iloc[0]["Home"] if home_xg > away_xg else matches.iloc[0]["Away"]
+                # Calculate cumulative goals for the away player
+                away_player = matches.iloc[0]["Away"]
+                home_goals = matches[matches["Home"] == away_player]["Home Goals"].sum()
+                away_goals = matches[matches["Away"] == away_player]["Away Goals"].sum()
+                total_away_player_goals = home_goals + away_goals
+
+                # Compare cumulative goals
+                if total_home_player_goals > total_away_player_goals:
+                    return home_player
+                elif total_away_player_goals > total_home_player_goals:
+                    return away_player
+                else:  # Tie-breaker: Use cumulative xG
+                    home_xg = matches[matches["Home"] == home_player]["Home xG"].sum()
+                    away_xg = matches[matches["Away"] == home_player]["Away xG"].sum()
+                    total_home_player_xg = home_xg + away_xg
+
+                    home_xg = matches[matches["Home"] == away_player]["Home xG"].sum()
+                    away_xg = matches[matches["Away"] == away_player]["Away xG"].sum()
+                    total_away_player_xg = home_xg + away_xg
+
+                    return home_player if total_home_player_xg > total_away_player_xg else away_player
+
 
             # Determine winners for WC1 and WC2
             wc1_matches = playoff_results[playoff_results["Match"].str.startswith("WC1")]
@@ -351,7 +392,7 @@ def main():
 
             # Filter games to exclude "Finals"
             non_finals_matches = playoff_results[~playoff_results["Match"].str.contains("Final", na=False)]
-
+            
             # Create a selectbox for only non-"Finals" games
             selected_game = st.selectbox("Select Game to Update", non_finals_matches["Game #"])
 
@@ -371,13 +412,30 @@ def main():
                 away_xg = st.number_input(f"xG for {away_team}", min_value=0.0, step=0.1, key=f"away_xg_{selected_game}")
 
                 # Button to update match results
-                if st.button("Update Playoff Match Results"):
-                    st.session_state.playoff_results.loc[
-                        st.session_state.playoff_results["Game #"] == selected_game,
-                        ["Home Goals", "Away Goals", "Home xG", "Away xG"]
-                    ] = [home_goals, away_goals, home_xg, away_xg]
+                if st.button("Update Playoff Match Results", key=f"update_results_{selected_game}"):
+                    # Locate the row to update in the DataFrame
+                    idx = st.session_state.playoff_results[st.session_state.playoff_results["Game #"] == selected_game].index[0]
 
-                    st.success(f"Results updated for {selected_game}")
+                    # Update the DataFrame with new values
+                    st.session_state.playoff_results.at[idx, "Home Goals"] = home_goals
+                    st.session_state.playoff_results.at[idx, "Away Goals"] = away_goals
+                    st.session_state.playoff_results.at[idx, "Home xG"] = home_xg
+                    st.session_state.playoff_results.at[idx, "Away xG"] = away_xg
+
+                    # Update the status column
+                    st.session_state.playoff_results["Status"] = st.session_state.playoff_results["Game #"].apply(
+                        lambda game_id: "✅" if not pd.isna(
+                            st.session_state.playoff_results.loc[
+                                st.session_state.playoff_results["Game #"] == game_id, "Home Goals"
+                            ]
+                        ).all() else ""
+                    )
+
+                    st.success(f"Results updated for Game #{selected_game}")
+
+                    #TODO Debug: Display updated playoff results
+                    #st.dataframe(st.session_state.playoff_results)
+
 
 
     with tab4:
@@ -400,6 +458,7 @@ def main():
         sf1_win = determine_winner(sf1_matches) if not sf1_matches.dropna(subset=["Home Goals", "Away Goals"]).empty else None
         sf2_win = determine_winner(sf2_matches) if not sf2_matches.dropna(subset=["Home Goals", "Away Goals"]).empty else None
 
+
         # Update final matches with semi-final winners
         if sf1_win and sf2_win:
             final_matches = playoff_results["Match"].str.startswith("Final")
@@ -407,8 +466,10 @@ def main():
                 playoff_results.loc[final_matches, ["Home", "Away"]]
                 .replace({"Winner SF1": sf1_win, "Winner SF2": sf2_win})
             )
+            
+            # Write back updated playoff results to session state
             st.session_state.playoff_results = playoff_results.copy()
-
+        
         # Display Finals
         final_matches = playoff_results[playoff_results["Match"].str.contains("Final", na=False)]
         if final_matches.empty:
@@ -466,19 +527,20 @@ def main():
 
                     st.success(f"Results updated for Finals Game {selected_final_game}")
 
-
+    # Save Tournament
     if st.sidebar.button("Finalize and Save Tournament Statistics"):
-        if st.session_state.results["Home Goals"].isnull().any() or st.session_state.results["Away Goals"].isnull().any():
-            st.sidebar.error("Cannot finalize: Not all match results have been entered.")
-        else:
+        if st.session_state["results"] is not None and not st.session_state["results"].empty:
             save_tournament(
-                st.session_state.tournament_id,
-                st.session_state.tournament_name,
-                standings,
-                st.session_state.results
+                st.session_state["tournament_id"],
+                st.session_state["tournament_name"],
+                st.session_state["standings"],
+                st.session_state["results"]
             )
-            st.session_state.completed = True
+            st.session_state["completed"] = True
             st.success("Tournament statistics saved successfully!")
+        else:
+            st.sidebar.error("Cannot finalize: No results available.")
+
 
 if __name__ == "__main__":
     main()

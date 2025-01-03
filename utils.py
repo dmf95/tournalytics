@@ -363,3 +363,34 @@ def save_tournament(tournament_id, tournament_name, standings, results):
 # Load player data
 def load_player_data():
     return pd.read_csv("assets/players.csv")
+
+
+# Helper function to determine winner based on cumulative goals and xG
+def determine_winner(matches):
+    # Calculate cumulative goals for the home player
+    home_player = matches.iloc[0]["Home"]
+    home_goals = matches[matches["Home"] == home_player]["Home Goals"].sum()
+    away_goals = matches[matches["Away"] == home_player]["Away Goals"].sum()
+    total_home_player_goals = home_goals + away_goals
+
+    # Calculate cumulative goals for the away player
+    away_player = matches.iloc[0]["Away"]
+    home_goals = matches[matches["Home"] == away_player]["Home Goals"].sum()
+    away_goals = matches[matches["Away"] == away_player]["Away Goals"].sum()
+    total_away_player_goals = home_goals + away_goals
+
+    # Compare cumulative goals
+    if total_home_player_goals > total_away_player_goals:
+        return home_player
+    elif total_away_player_goals > total_home_player_goals:
+        return away_player
+    else:  # Tie-breaker: Use cumulative xG
+        home_xg = matches[matches["Home"] == home_player]["Home xG"].sum()
+        away_xg = matches[matches["Away"] == home_player]["Away xG"].sum()
+        total_home_player_xg = home_xg + away_xg
+
+        home_xg = matches[matches["Home"] == away_player]["Home xG"].sum()
+        away_xg = matches[matches["Away"] == away_player]["Away xG"].sum()
+        total_away_player_xg = home_xg + away_xg
+
+        return home_player if total_home_player_xg > total_away_player_xg else away_player
