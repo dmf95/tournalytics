@@ -1,14 +1,31 @@
 import pandas as pd
-import numpy as np
 import random
-import os
-import uuid
-import plotly.figure_factory as ff
 import streamlit as st
 
-# Function to generate a unique tournament ID
-def generate_tournament_id():
-    return str(uuid.uuid4())[:8]
+# Helper Functions
+def validate_schedule(schedule):
+    """
+    Validates the generated schedule to ensure it meets application requirements.
+    """
+    if not schedule or not isinstance(schedule, list):
+        raise ValueError("Invalid schedule: Schedule must be a non-empty list of games.")
+    required_keys = {"Game #", "Home", "Away", "Console"}
+    if not all(required_keys.issubset(game.keys()) for game in schedule):
+        raise ValueError(f"Invalid schedule: Each game must contain keys {required_keys}.")
+
+def set_schedule(schedule):
+    """
+    Updates the session state with the generated schedule and ensures all dependent keys are initialized.
+    """
+    validate_schedule(schedule)  # Ensure schedule is valid
+    st.session_state["schedule"] = schedule
+    st.session_state["results"] = pd.DataFrame(schedule)
+    st.session_state["results"]["Home Goals"] = np.nan
+    st.session_state["results"]["Away Goals"] = np.nan
+    st.session_state["results"]["Home xG"] = np.nan
+    st.session_state["results"]["Away xG"] = np.nan
+    st.session_state["tournament_ready"] = True
+
 
 # Function to generate a round-robin schedule considering consoles, minimizing concurrent games
 def generate_schedule(players, teams, num_consoles):
@@ -327,42 +344,6 @@ def generate_playoffs_bracket(standings, last_game_id):
         print(b)
 
     return bracket
-
-
-# Function to create a bracket visualization
-def create_bracket_visualization(bracket):
-    rounds = ["Wildcard", "Semifinals", "Finals"]
-    data = []
-    for round_name in rounds:
-        for match in bracket.get(round_name, []):
-            data.append([round_name, match["Match"], match["Home"], match["Away"]])
-    bracket_df = pd.DataFrame(data, columns=["Round", "Match", "Home", "Away"])
-    return bracket_df
-
-# Function to plot the bracket
-def plot_bracket(bracket_df):
-    fig = ff.create_table(bracket_df)
-    return fig
-
-# Function to load previous tournaments
-def load_previous_tournaments():
-    if os.path.exists("tournaments.csv"):
-        return pd.read_csv("tournaments.csv")
-    return pd.DataFrame(columns=["Tournament ID", "Tournament Name", "Status"])
-
-# Function to save a tournament
-def save_tournament(tournament_id, tournament_name, standings, results):
-    results.to_csv(f"tournament_{tournament_id}_results.csv", index=False)
-    standings.to_csv(f"tournament_{tournament_id}_standings.csv", index=False)
-    if not os.path.exists("tournaments.csv"):
-        pd.DataFrame({"Tournament ID": [], "Tournament Name": [], "Status": []}).to_csv("tournaments.csv", index=False)
-    tournaments = pd.read_csv("tournaments.csv")
-    tournaments = pd.concat([tournaments, pd.DataFrame([{"Tournament ID": tournament_id, "Tournament Name": tournament_name, "Status": "Completed"}])], ignore_index=True)
-    tournaments.to_csv("tournaments.csv", index=False)
-
-# Load player data
-def load_player_data():
-    return pd.read_csv("assets/players.csv")
 
 
 # Helper function to determine winner based on cumulative goals and xG

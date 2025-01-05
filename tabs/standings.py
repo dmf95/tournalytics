@@ -1,15 +1,29 @@
-from utils import (
+#-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-
+#-- dependencies
+#-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-
+
+# main libraries
+import streamlit as st
+import pandas as pd
+import numpy as np
+# custom libraries
+from utils.tournament_utils import (
     initialize_standings,
     update_standings,
     calculate_outcomes,
 )
-import streamlit as st
-import pandas as pd
-import numpy as np
 
+#-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-
+#-- tournament.py: standings tab (1st)
+#-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-
 
 def render():
   st.header("League Standings")
+
+  # Ensure 'results' exists
+  if "results" not in st.session_state:
+    st.error("No results available. Please generate a tournament schedule first.")
+    return
 
   # Filter for completed round-robin games
   games_played = st.session_state.results.dropna(subset=["Home Goals", "Away Goals"]).copy()

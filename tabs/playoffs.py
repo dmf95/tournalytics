@@ -1,11 +1,20 @@
-from utils import (
-    generate_playoffs_bracket,
-)
+#-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-
+#-- dependencies
+#-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-
+
+# main libraries
 import streamlit as st
 import pandas as pd
 import numpy as np
+# custom libraries
+from utils.tournament_utils import (
+    generate_playoffs_bracket,
+)
 
-# Playoffs (tab3)
+#-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-
+#-- tournament.py: playoffs tab (3rd)
+#-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-
+
 def render():
 
   # Reset Playoff Bracket

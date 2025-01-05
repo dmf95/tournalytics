@@ -1,11 +1,18 @@
-from utils import (
-    determine_winner,
-)
+#-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-
+#-- dependencies
+#-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-
+
+# main libraries
 import streamlit as st
 import pandas as pd
 import numpy as np
+# custom libraries
+from utils.tournament_utils import determine_winner
 
-# Finals (tab4)
+#-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-
+#-- tournament.py: finals tab (4th)
+#-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-
+
 def render():
 
     if "playoff_results" not in st.session_state or st.session_state.playoff_results.empty:
