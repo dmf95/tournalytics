@@ -1,4 +1,7 @@
+import json
+from datetime import datetime, date  
 import pandas as pd
+import streamlit as st
 import os
 
 def load_previous_tournaments():
@@ -17,12 +20,62 @@ def save_tournament(tournament_id, tournament_name, standings, results):
     ])
     tournaments.to_csv("tournaments.csv", index=False)
 
+# Define a custom encoder to handle non-serializable types
+class CustomJSONEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, (datetime, date)):
+            return obj.isoformat()  # Convert date and datetime to ISO format strings
+        return super().default(obj)
+
+def save_tournament_complete(session_state, save_path="", verbose=False):
+    """
+    Save tournament data to a file or return it as a dictionary.
+    """
+    required_keys = ["standings", "results", "playoff_results", "selected_tournament_id"]
+
+    # Validate session state keys
+    for key in required_keys:
+        if key not in session_state or (key == "selected_tournament_id" and not session_state[key]):
+            raise ValueError(f"Missing required session state key: {key}")
+
+    tournament_id = session_state.selected_tournament_id
+    tournament_metadata = session_state.tournaments.get(tournament_id, {})
+
+    # Enhance the tables with the tournament_id column
+    standings = session_state.standings.copy()
+    standings["tournament_id"] = tournament_id
+
+    results = session_state.results.copy()
+    results["tournament_id"] = tournament_id
+
+    playoff_results = session_state.playoff_results.copy()
+    playoff_results["tournament_id"] = tournament_id
+
+    # Log the results as a single dictionary
+    tournament_data = {
+        "standings": standings.to_dict(orient="records"),
+        "results": results.to_dict(orient="records"),
+        "playoff_results": playoff_results.to_dict(orient="records"),
+        "metadata": tournament_metadata,
+    }
+
+    # Save the data to a file if a path is provided
+    if save_path:
+        timestamp = datetime.now().strftime("%d%m%Y%H%M")
+        filename = f"{save_path}/tournament_{tournament_id}_{timestamp}.json"
+        try:
+            with open(filename, "w") as f:
+                json.dump(tournament_data, f, indent=4, cls=CustomJSONEncoder)
+            if verbose:
+                print(f"Tournament data saved to {filename}")
+        except Exception as e:
+            raise IOError(f"Failed to save tournament data: {str(e)}")
+
+    return tournament_data
+
 # Load player data
 def load_player_data_local(path):
     return pd.read_csv(path)
-
-import pandas as pd
-import os
 
 def insert_player_data(data, file_path="assets/players.csv"):
     """

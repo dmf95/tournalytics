@@ -331,7 +331,7 @@ def render():
                     "selected_players": st.session_state["selected_players"],
                     "team_selection": st.session_state["team_selection"],
                 }
-                st.success(f"Tournament setup saved with ID: {tournament_id}")
+                st.success(f"Tournament setup saved with ID: {tournament_id}",icon="✅") 
 
             # Add Start Over Button
             render_start_over_button(tab='setup_finish')

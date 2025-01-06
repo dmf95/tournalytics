@@ -64,7 +64,7 @@ def generate_schedule(players, teams, num_consoles):
                 home, away = away, home
 
             games_in_round.append({
-                "Game #": f"Game{game_id}",
+                "Game #": f"Game{game_id:02}",  # Format game_id to two digits
                 "Round": round_num,
                 "Home": home,
                 "Away": away,

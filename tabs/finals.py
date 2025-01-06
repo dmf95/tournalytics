@@ -2,106 +2,168 @@
 #-- dependencies
 #-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-
 
-# main libraries
 import streamlit as st
 import pandas as pd
 import numpy as np
-# custom libraries
+from datetime import datetime, date
+import json
 from utils.tournament_utils import determine_winner
+from utils.data_utils import save_tournament_complete, CustomJSONEncoder
 
 #-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-
 #-- tournament.py: finals tab (4th)
 #-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-
 
 def render():
-
+    # Validate session state
     if "playoff_results" not in st.session_state or st.session_state.playoff_results.empty:
         st.warning("Playoffs have not been generated yet.")
         st.stop()
-        st.write("poo")
 
-    else:
-        playoff_results = st.session_state.playoff_results.copy()
-        st.write("blah")
+    playoff_results = st.session_state.playoff_results.copy()
 
-        # Check semi-final completion
-        semi_final_matches = playoff_results[playoff_results["Match"].str.startswith("SF")]
-        if semi_final_matches["Home Goals"].isna().any() or semi_final_matches["Away Goals"].isna().any():
-            st.warning("Finals are locked until all semi-final matches are completed.")
-            st.stop()
+    # Ensure semi-finals are completed
+    validate_semi_final_completion(playoff_results)
 
-        # Determine winners for SF1 and SF2
-        sf1_matches = playoff_results[playoff_results["Match"].str.startswith("SF1")]
-        sf2_matches = playoff_results[playoff_results["Match"].str.startswith("SF2")]
+    # Determine semi-final winners and update finals
+    update_final_matches(playoff_results)
 
-        sf1_win = determine_winner(sf1_matches) if not sf1_matches.dropna(subset=["Home Goals", "Away Goals"]).empty else None
-        sf2_win = determine_winner(sf2_matches) if not sf2_matches.dropna(subset=["Home Goals", "Away Goals"]).empty else None
+    # Display finals information
+    final_matches = playoff_results[playoff_results["Match"].str.contains("Final", na=False)]
+    if final_matches.empty:
+        st.info("No finals matches available.")
+        return
 
+    display_final_matches(final_matches)
+    handle_results_saving()
+    handle_results_update(final_matches)
 
-        # Update final matches with semi-final winners
-        if sf1_win and sf2_win:
-            final_matches = playoff_results["Match"].str.startswith("Final")
-            playoff_results.loc[final_matches, ["Home", "Away"]] = (
-                playoff_results.loc[final_matches, ["Home", "Away"]]
-                .replace({"Winner SF1": sf1_win, "Winner SF2": sf2_win})
-            )
-            
-            # Write back updated playoff results to session state
-            st.session_state.playoff_results = playoff_results.copy()
+# Helper: Validate semi-final completion
+def validate_semi_final_completion(playoff_results):
+    semi_final_matches = playoff_results[playoff_results["Match"].str.startswith("SF")]
+    if semi_final_matches["Home Goals"].isna().any() or semi_final_matches["Away Goals"].isna().any():
+        st.warning("Finals are locked until all semi-final matches are completed.")
+        st.stop()
 
-        # Display Finals
-        final_matches = playoff_results[playoff_results["Match"].str.contains("Final", na=False)]
-        if final_matches.empty:
-            st.info("No finals matches available.")
-        else:
-            # Check if all finals games are complete
-            if not final_matches["Home Goals"].isna().any() and not final_matches["Away Goals"].isna().any():
-                # Determine the overall winner
-                overall_winner = determine_winner(final_matches)
-                winner_team = st.session_state.teams[overall_winner]
+# Helper: Update final matches
+def update_final_matches(playoff_results):
+    sf1_matches = playoff_results[playoff_results["Match"].str.startswith("SF1")]
+    sf2_matches = playoff_results[playoff_results["Match"].str.startswith("SF2")]
 
-                # Display winner message and GIF under the header
-                st.markdown(f"### 🏆 Congratulations to **{winner_team}**! 🏆")
-                st.image("assets/_champion.gif", caption=f"{winner_team} is the champion!")
+    sf1_win = determine_winner(sf1_matches) if not sf1_matches.dropna(subset=["Home Goals", "Away Goals"]).empty else None
+    sf2_win = determine_winner(sf2_matches) if not sf2_matches.dropna(subset=["Home Goals", "Away Goals"]).empty else None
 
-            # Add team names and status to playoff results
-            final_matches["Home Team"] = final_matches["Home"].map(st.session_state.teams)
-            final_matches["Away Team"] = final_matches["Away"].map(st.session_state.teams)
-            final_matches["Status"] = final_matches["Game #"].apply(
-                lambda game_id: "✅" if not pd.isna(
-                    final_matches.loc[final_matches["Game #"] == game_id, "Home Goals"]
-                ).all() else ""
-            )
+    if sf1_win and sf2_win:
+        final_matches = playoff_results["Match"].str.startswith("Final")
+        playoff_results.loc[final_matches, ["Home", "Away"]] = (
+            playoff_results.loc[final_matches, ["Home", "Away"]]
+            .replace({"Winner SF1": sf1_win, "Winner SF2": sf2_win})
+        )
+        st.session_state.playoff_results = playoff_results.copy()
 
-            # Display playoff results with consistent attributes
-            st.subheader("Finals")
-            final_bracket = final_matches[["Game #", "Match", "Home Team", "Away Team", "Console", "Status"]]
-            st.dataframe(
-                final_bracket[final_bracket["Match"].str.contains("Final", na=False)],
-                use_container_width=True,
-            )
+# Helper: Display finals
+def display_final_matches(final_matches):
+    # Add team names and status
+    final_matches["Home Team"] = final_matches["Home"].map(st.session_state.teams)
+    final_matches["Away Team"] = final_matches["Away"].map(st.session_state.teams)
+    final_matches["Status"] = final_matches["Game #"].apply(
+        lambda game_id: "✅" if not pd.isna(
+            final_matches.loc[final_matches["Game #"] == game_id, "Home Goals"]
+        ).all() else ""
+    )
 
-            # Allow updating results for finals games
-            st.subheader("Update Finals Match Results")
-            selected_final_game = st.selectbox("Select Finals Game to Update", final_matches["Game #"])
+    # Display finals bracket
+    st.markdown("<div style='text-align: center;'><h3>🏆 Finals</h3></div>", unsafe_allow_html=True)
+    final_bracket = final_matches[["Game #", "Match", "Home Team", "Away Team", "Console", "Status"]]
+    st.dataframe(final_bracket, use_container_width=True, hide_index=True)
 
-            if selected_final_game:
-                match_row = final_matches[final_matches["Game #"] == selected_final_game].iloc[0]
-                home_team = match_row["Home"]
-                away_team = match_row["Away"]
+    # Display champion if all finals are completed
+    if not final_matches["Home Goals"].isna().any() and not final_matches["Away Goals"].isna().any():
+        display_champion(final_matches)
 
-                st.write(f"**Home Team**: {home_team}")
-                st.write(f"**Away Team**: {away_team}")
+# Helper: Display champion
+def display_champion(final_matches):
+    overall_winner = determine_winner(final_matches)
+    winner_team = st.session_state.teams[overall_winner]
+    st.markdown(
+        f"""
+        <div style="text-align: center; margin: 5px 0; font-family: Arial, sans-serif;">
+            <h2 style="color: #FFD700; font-size: 1.8em; line-height: 1.1; font-weight: bold;">🎉 {winner_team} 🎉</h2>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    st.image("assets/_champion.gif", caption=f"{winner_team} are the champions!", use_container_width=True)
 
-                home_goals = st.number_input(f"Goals for {home_team}", min_value=0, step=1, key=f"home_goals_final_{selected_final_game}")
-                away_goals = st.number_input(f"Goals for {away_team}", min_value=0, step=1, key=f"away_goals_final_{selected_final_game}")
-                home_xg = st.number_input(f"xG for {home_team}", min_value=0.0, step=0.1, key=f"home_xg_final_{selected_final_game}")
-                away_xg = st.number_input(f"xG for {away_team}", min_value=0.0, step=0.1, key=f"away_xg_final_{selected_final_game}")
+# Helper: Save results
+def handle_results_saving():
+    st.markdown("<div style='text-align: center; margin: 10px;'><h3>💾 Save Tournament Results</h3></div>", unsafe_allow_html=True)
+    if st.button("💾 Save Tournament Results", use_container_width=True):
+        with st.spinner("Saving tournament results..."):
+            try:
+                save_path = "assets/"
+                save_tournament_complete(st.session_state, save_path=save_path, verbose=True)
+                st.success("Tournament results saved successfully! 🎉", icon="✅")
+            except Exception as e:
+                st.error(f"An error occurred: {str(e)}", icon="❌")
 
-                if st.button("Update Finals Match Results"):
-                    st.session_state.playoff_results.loc[
-                        st.session_state.playoff_results["Game #"] == selected_final_game,
-                        ["Home Goals", "Away Goals", "Home xG", "Away xG"]
-                    ] = [home_goals, away_goals, home_xg, away_xg]
+# Helper: Update results
+def handle_results_update(final_matches):
+    st.markdown("<div style='text-align: center;'><h3>✏️ Update Finals Match Results</h3></div>", unsafe_allow_html=True)
+    selected_game = st.selectbox("Select Finals Game to Update", final_matches["Game #"])
 
-                    st.success(f"Results updated for Finals Game {selected_final_game}")
+    if selected_game:
+        match_row = final_matches[final_matches["Game #"] == selected_game].iloc[0]
+        home_team = match_row["Home Team"]
+        away_team = match_row["Away Team"]
+        display_match_details(selected_game, match_row, home_team, away_team)
+        update_match_results(selected_game, home_team, away_team)
+
+# Helper: Display match details
+def display_match_details(selected_game, match_row, home_team, away_team):
+    st.markdown(
+        f"""
+        <div style="background-color: rgba(255, 255, 255, 0.1); border: 1px solid rgba(255, 255, 255, 0.2); 
+                    padding: 15px; border-radius: 10px; margin-bottom: 20px; text-align: left; 
+                    color: #ffffff; font-size: 1.1em; line-height: 1.6;">
+            <div style="display: flex; align-items: center; margin-bottom: 10px;">
+                🎮 <strong>Game #:</strong> {selected_game}
+            </div>
+            <div style="display: flex; align-items: center; margin-bottom: 10px;">
+                🆚 <strong>Match Type:</strong> {match_row["Match"]}
+            </div>
+            <div style="display: flex; align-items: center; margin-bottom: 10px;">
+                🕹️ <strong>Console:</strong> {match_row["Console"]}
+            </div>
+            <div style="display: flex; align-items: center; margin-bottom: 10px;">
+                🏠 <strong>Home Team:</strong> {home_team}
+            </div>
+            <div style="display: flex; align-items: center; margin-bottom: 10px;">
+                ✈️ <strong>Away Team:</strong> {away_team}
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+# Helper: Update match results
+def update_match_results(selected_game, home_team, away_team):
+    col1, col2 = st.columns(2)
+    with col1:
+        home_goals = st.number_input(f"Goals for {home_team}", min_value=0, step=1, key=f"home_goals_{selected_game}")
+    with col2:
+        home_xg = st.number_input(f"xG for {home_team}", min_value=0.0, step=0.1, key=f"home_xg_{selected_game}")
+
+    col3, col4 = st.columns(2)
+    with col3:
+        away_goals = st.number_input(f"Goals for {away_team}", min_value=0, step=1, key=f"away_goals_{selected_game}")
+    with col4:
+        away_xg = st.number_input(f"xG for {away_team}", min_value=0.0, step=0.1, key=f"away_xg_{selected_game}")
+
+    if st.button(f"✏️ Update Match Results ({selected_game})", use_container_width=True):
+        idx = st.session_state.playoff_results[st.session_state.playoff_results["Game #"] == selected_game].index[0]
+        st.session_state.playoff_results.at[idx, "Home Goals"] = home_goals
+        st.session_state.playoff_results.at[idx, "Away Goals"] = away_goals
+        st.session_state.playoff_results.at[idx, "Home xG"] = home_xg
+        st.session_state.playoff_results.at[idx, "Away xG"] = away_xg
+        st.success(f"Results updated for Game #{selected_game}", icon="✅")
