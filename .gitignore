@@ -3,6 +3,7 @@ __pycache__/
 **/__pycache__/
 *.pyc
 *.pyo
+*.streamlit
 
 # Ignore CSV files
 *.csv

@@ -1,4 +1,5 @@
 import streamlit as st
+from login import render_login 
 
 def render_home():
     """Render the Home page with mobile-first enhancements."""
@@ -77,18 +78,49 @@ tournaments_page = st.Page("tournaments.py", title="Tournaments", icon="🏆")
 players_page = st.Page("players.py", title="Players", icon="👤")
 stats_page = st.Page("stats.py", title="Stats", icon="📊")
 
-# Set the default page to Home
-if "page" not in st.session_state:
-    st.session_state.page = "Home"  # Default page
+# Initialize authentication state
+if "authenticated" not in st.session_state:
+    st.session_state["authenticated"] = False
+if "username" not in st.session_state:
+    st.session_state["username"] = None
+if "role" not in st.session_state:
+    st.session_state["role"] = None
 
-# Navigation (Streamlit automatically handles the page transitions)
-pg = st.navigation(
-    {
-        "Main": [home_page],
-        "Features": [tournaments_page, players_page, stats_page],
-    }
-)
+# Handle login state
+if not st.session_state["authenticated"]:
+    render_login()  # Show the login page if not authenticated
+else:
+    # Render the app if authenticated
+    st.sidebar.markdown(f"Logged in as: {st.session_state['username']} ({st.session_state['role']})")
+    if st.sidebar.button("Log Out"):
+        # Log out by clearing session state
+        st.session_state.update({"authenticated": False, "username": None, "role": None})
+        st.experimental_rerun()  # Force rerun to show the login page
 
-# This part ensures the page switch works based on `st.session_state.page`
-# Do NOT manually call `run()` here! Navigation is handled automatically by `st.navigation`
-pg.run()
+    # Define role-based navigation
+    if st.session_state["role"] == "super_admin":
+        # Super Admin has access to all pages
+        pg = st.navigation(
+            {
+                "Main": [home_page],
+                "Features": [tournaments_page, players_page, stats_page],
+            }
+        )
+    elif st.session_state["role"] == "admin":
+        # Admin can access all except sensitive pages (if applicable)
+        pg = st.navigation(
+            {
+                "Main": [home_page],
+                "Features": [tournaments_page, players_page],
+            }
+        )
+    elif st.session_state["role"] == "user":
+        # Regular users can only access the stats page
+        pg = st.navigation(
+            {
+                "Stats": [stats_page],
+            }
+        )
+
+    # Ensure the page switch works based on `st.session_state.page`
+    pg.run()
