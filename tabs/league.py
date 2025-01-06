@@ -20,12 +20,12 @@ from utils.tournament_utils import (
 def render():
     # Check if the tournament is ready
     if not st.session_state.get("tournament_ready", False):
-        st.warning("Please complete the tournament setup before accessing the league.")
+        st.warning("Please complete the tournament setup before accessing the league.", icon="🔒")
         return
 
     # Check if the schedule is available
     if "schedule" not in st.session_state or not st.session_state["schedule"]:
-        st.warning("Tournament schedule is missing. Generate the schedule first.")
+        st.warning("Tournament schedule is missing. Generate the schedule first.", icon="🔒")
         return
     
     st.markdown(

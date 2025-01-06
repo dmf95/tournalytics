@@ -17,7 +17,7 @@ from utils.data_utils import save_tournament_complete, CustomJSONEncoder
 def render():
     # Validate session state
     if "playoff_results" not in st.session_state or st.session_state.playoff_results.empty:
-        st.warning("Playoffs have not been generated yet.")
+        st.warning("Playoffs have not been generated yet.", icon="🔒")
         st.stop()
 
     playoff_results = st.session_state.playoff_results.copy()
@@ -31,7 +31,7 @@ def render():
     # Display finals information
     final_matches = playoff_results[playoff_results["Match"].str.contains("Final", na=False)]
     if final_matches.empty:
-        st.info("No finals matches available.")
+        st.info("No finals matches available.", icon="ℹ️")
         return
 
     display_final_matches(final_matches)
@@ -42,7 +42,7 @@ def render():
 def validate_semi_final_completion(playoff_results):
     semi_final_matches = playoff_results[playoff_results["Match"].str.startswith("SF")]
     if semi_final_matches["Home Goals"].isna().any() or semi_final_matches["Away Goals"].isna().any():
-        st.warning("Finals are locked until all semi-final matches are completed.")
+        st.warning("Finals are locked until all semi-final matches are completed.", icon="🔒")
         st.stop()
 
 # Helper: Update final matches

@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 from utils.general_utils import generate_tournament_id
+from utils.data_utils import load_player_data_local
 
 def update_current_step():
     """Updates the current step based on the progress flags."""
@@ -127,7 +128,7 @@ def render():
             """
             <div style='text-align: center; margin-bottom: 20px;'>
                 <h3 style='margin-bottom: 5px;'>🎮 Create Tournament</h3>
-                <p style='font-size: 14px; color: #555;'>Enter the tournament details to get started.</p>
+                <p style='font-size: 14px; color: #808080;'>Enter the tournament details to get started.</p>
             </div>
             """,
             unsafe_allow_html=True,
@@ -175,7 +176,7 @@ def render():
             """
             <div style='text-align: center; margin-bottom: 20px;'>
                 <h3 style='margin-bottom: 5px;'>⚙️ General Setup</h3>
-                <p style='font-size: 14px; color: #555;'>Define tournament setup settings.</p>
+                <p style='font-size: 14px; color: #808080;'>Define tournament setup settings.</p>
             </div>
             """,
             unsafe_allow_html=True,
@@ -239,52 +240,91 @@ def render():
             render_start_over_button(tab='setup_general')
 
 
-   # Player Selection
+    # Player Selection
     with tab_players:
         st.markdown(
             """
             <div style='text-align: center; margin-bottom: 20px;'>
                 <h3 style='margin-bottom: 5px;'>👤 Player Setup</h3>
-                <p style='font-size: 14px; color: #555;'>Select players and assign teams.</p>
+                <p style='font-size: 14px; color: #808080;'>Select players and assign teams.</p>
             </div>
             """,
             unsafe_allow_html=True,
         )
 
-        if not st.session_state["setup_complete"]:
+        if not st.session_state.get("setup_complete", False):
             st.warning(
                 "Complete the General Setup step first to unlock this tab.", icon="🔒"
             )
         else:
-
-            player_names = st.session_state["player_names"]
-            selected_players = st.multiselect(
-                "Select Players", player_names, default=player_names[:st.session_state["num_players"]]
-            )
-            if len(selected_players) != st.session_state["num_players"]:
-                st.error(f"Please select exactly {st.session_state['num_players']} players.")
+            # Load and process player data
+            if "players" not in st.session_state:
+                try:
+                    # Load players and add "source" column for default players
+                    loaded_players = load_player_data_local("assets/players.csv")
+                    loaded_players["source"] = "default"
+                    st.session_state["players"] = loaded_players
+                except Exception as e:
+                    st.session_state["players"] = None
+                    st.error(f"Failed to load player data: {e}", icon="❌")
+            # Ensure player data is loaded and formatted correctly
+            if "players" not in st.session_state or st.session_state["players"] is None:
+                st.error("No players available. Please add players on the Player Management page.", icon="❌")
             else:
-                team_selection = {
-                    player: st.text_input(f"Team for {player}", value=f"Team {player}")
-                    for player in selected_players
-                }
+                # Ensure "id" and "source" columns exist dynamically
+                players_data = st.session_state["players"].copy()
+                if "id" not in players_data.columns:
+                    players_data["id"] = None
+                if "source" not in players_data.columns:
+                    players_data["source"] = "default"
 
-                # Proceed Button with Icon
-                proceed_button = st.button(
-                    "🚀 Proceed to Finish",
-                    key="proceed_to_finish",
-                    use_container_width=True,
+                # Generate a list of player names in "First Last" format
+                player_names = (
+                    players_data["first_name"] + " " + players_data["last_name"]
+                ).tolist()
+
+                # Store player names in session state for selection
+                st.session_state["player_names"] = player_names
+
+                # Player Multiselect
+                selected_players = st.multiselect(
+                    "Select Players",
+                    options=player_names,
+                    default=player_names[: st.session_state.get("num_players", len(player_names))],
                 )
 
-                # Logic for Proceed Button
-                if proceed_button:
-                    st.session_state["players_selected"] = True
-                    st.session_state["selected_players"] = selected_players
-                    st.session_state["team_selection"] = team_selection
-                    st.success("Player Setup completed! Proceed to the Finish.", icon="✅")
+                # Validate the number of selected players
+                num_players_required = st.session_state.get("num_players", len(player_names))
+                if len(selected_players) != num_players_required:
+                    st.error(
+                        f"Please select exactly {num_players_required} players.", icon="❌"
+                    )
+                else:
+                    # Assign teams dynamically
+                    team_selection = {
+                        player: st.text_input(
+                            f"Team for {player}", value=f"Team {player.split()[0]}"
+                        )
+                        for player in selected_players
+                    }
+
+                    # Proceed Button with Icon
+                    proceed_button = st.button(
+                        "🚀 Proceed to Finish",
+                        key="proceed_to_finish",
+                        use_container_width=True,
+                    )
+
+                    # Logic for Proceed Button
+                    if proceed_button:
+                        st.session_state["players_selected"] = True
+                        st.session_state["selected_players"] = selected_players
+                        st.session_state["team_selection"] = team_selection
+                        st.success("Player Setup completed! Proceed to the Finish.", icon="✅")
 
             # Add Start Over Button
-            render_start_over_button(tab='setup_players')
+            render_start_over_button(tab="setup_players")
+
 
     # Finish Tab
     with tab_finish:
@@ -292,13 +332,13 @@ def render():
             """
             <div style='text-align: center; margin-bottom: 20px;'>
                 <h3 style='margin-bottom: 5px;'>🎉 Finish Tournament Setup</h3>
-                <p style='font-size: 14px; color: #555;'>Save your Tournament setup.</p>
+                <p style='font-size: 14px; color: #808080;'>Save your Tournament setup.</p>
             </div>
             """,
             unsafe_allow_html=True,
         )
         if not st.session_state["players_selected"]:
-            st.warning("Complete the Player Selection step first to unlock this tab.")
+            st.warning("Complete the Player Selection step first to unlock this tab.", icon="🔒")
         else:
             # Collapsible sections for details
             with st.expander("🏆 Tournament Details", expanded=True):
@@ -330,7 +370,9 @@ def render():
                     "half_duration": st.session_state["half_duration"],
                     "selected_players": st.session_state["selected_players"],
                     "team_selection": st.session_state["team_selection"],
-                }
+                            }
+                st.session_state["selected_tournament_id"] = tournament_id
+                st.session_state["tournament_ready"] = True  # Set the tournament ready flag
                 st.success(f"Tournament setup saved with ID: {tournament_id}",icon="✅") 
 
             # Add Start Over Button

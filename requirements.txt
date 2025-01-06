@@ -11,6 +11,7 @@ cloudpickle==1.6.0
 colorama==0.4.6
 gitdb==4.0.12
 GitPython==3.1.44
+greenlet @ file:///C:/b/abs_bbl_18a2tm/croot/greenlet_1733860081977/work
 idna==3.10
 Jinja2==3.1.5
 jsonschema==4.23.0
@@ -39,12 +40,14 @@ sklearn==0.0
 slicer==0.0.7
 smmap==5.0.2
 soupsieve==2.2.1
+SQLAlchemy @ file:///C:/b/abs_7duxw5rxx8/croot/sqlalchemy_1725885067126/work
 streamlit==1.41.1
+streamlit-option-menu==0.4.0
 tenacity==9.0.0
 threadpoolctl==2.1.0
 toml==0.10.2
 tornado==6.4.2
-typing_extensions==4.12.2
+typing_extensions @ file:///C:/b/abs_0ffjxtihug/croot/typing_extensions_1734714875646/work
 tzdata==2024.2
 urllib3==2.3.0
 watchdog==6.0.0

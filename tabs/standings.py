@@ -29,7 +29,7 @@ def render():
 
     # Ensure 'results' exists
     if "results" not in st.session_state:
-        st.error("No results available. Please generate a tournament schedule first.")
+        st.error("No results available. Please generate a tournament schedule first.", icon="❌")
         return
 
     # Filter for completed round-robin games

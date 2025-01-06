@@ -3,11 +3,15 @@ from datetime import datetime, date
 import pandas as pd
 import streamlit as st
 import os
+import sqlalchemy
 
 def load_previous_tournaments():
     if os.path.exists("tournaments.csv"):
         return pd.read_csv("tournaments.csv")
     return pd.DataFrame(columns=["Tournament ID", "Tournament Name", "Status"])
+
+def load_player_data_local(path):
+    return pd.read_csv(path)
 
 def save_tournament(tournament_id, tournament_name, standings, results):
     results.to_csv(f"tournament_{tournament_id}_results.csv", index=False)
@@ -73,9 +77,6 @@ def save_tournament_complete(session_state, save_path="", verbose=False):
 
     return tournament_data
 
-# Load player data
-def load_player_data_local(path):
-    return pd.read_csv(path)
 
 def insert_player_data(data, file_path="assets/players.csv"):
     """
@@ -103,3 +104,23 @@ def insert_player_data(data, file_path="assets/players.csv"):
 
     # Save the updated data back to the file
     updated_data.to_csv(file_path, index=False)
+
+def insert_new_player_data(new_players):
+    """
+    Inserts new player data into a database table.
+    """
+    try:
+        # Establish a connection to the database
+        engine = sqlalchemy.create_engine("sqlite:///players.db")  # Example with SQLite
+        connection = engine.connect()
+
+        # Convert new players (list of dicts) to a DataFrame
+        new_data = pd.DataFrame(new_players)
+
+        # Insert new data into the database
+        new_data.to_sql("players", con=connection, if_exists="append", index=False)
+
+        # Close the connection
+        connection.close()
+    except Exception as e:
+        raise ValueError(f"Error persisting data to database: {e}")

@@ -279,7 +279,7 @@ def main():
 
         # Ensure results DataFrame exists and is valid
         if "results" not in st.session_state or st.session_state.results.empty:
-            st.warning("No results available. Please complete the round-robin stage first.")
+            st.warning("No results available. Please complete the round-robin stage first.", icon="🔒")
             st.stop()
 
         # Determine the starting Game ID for playoffs
@@ -298,7 +298,7 @@ def main():
         all_round_robin_complete = st.session_state.results.dropna(subset=["Home Goals", "Away Goals"]).shape[0] == st.session_state.results.shape[0]
 
         if not all_round_robin_complete:
-            st.warning("Playoffs are locked until all round-robin matches are completed.")
+            st.warning("Playoffs are locked until all round-robin matches are completed.", icon="🔒")
         else:
             # Generate or fetch playoff results
             if "playoff_results" not in st.session_state:
@@ -440,7 +440,7 @@ def main():
 
     with tab4:
         if "playoff_results" not in st.session_state:
-            st.warning("Playoffs have not been generated yet.")
+            st.warning("Playoffs have not been generated yet.", icon="🔒")
             st.stop()
 
         playoff_results = st.session_state.playoff_results.copy()
@@ -448,7 +448,7 @@ def main():
         # Check semi-final completion
         semi_final_matches = playoff_results[playoff_results["Match"].str.startswith("SF")]
         if semi_final_matches["Home Goals"].isna().any() or semi_final_matches["Away Goals"].isna().any():
-            st.warning("Finals are locked until all semi-final matches are completed.")
+            st.warning("Finals are locked until all semi-final matches are completed.", icon="🔒")
             st.stop()
 
         # Determine winners for SF1 and SF2

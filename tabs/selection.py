@@ -100,6 +100,6 @@ def render():
             st.success("Tournament schedule generated successfully! Tabs are now unlocked.", icon="✅")
 
         except KeyError as e:
-            st.error(f"Missing required setup information: {e}")
+            st.error(f"Missing required setup information: {e}", icon="❌")
         except Exception as e:
-            st.error(f"An error occurred while generating the schedule: {e}")
+            st.error(f"An error occurred while generating the schedule: {e}", icon="❌")

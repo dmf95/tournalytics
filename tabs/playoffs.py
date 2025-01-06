@@ -23,12 +23,12 @@ from utils.tournament_utils import (
 def render():
     # Check if the tournament is ready
     if not st.session_state.get("tournament_ready", False):
-        st.warning("Please complete the tournament setup before accessing the league.")
+        st.warning("Please complete the tournament setup before accessing the league.", icon="🔒")
         return
 
     # Check if the schedule is available
     if "schedule" not in st.session_state or not st.session_state["schedule"]:
-        st.warning("Tournament schedule is missing. Generate the schedule first.")
+        st.warning("Tournament schedule is missing. Generate the schedule first.", icon="🔒")
         return
 
     # Reset Playoff Bracket
@@ -39,12 +39,12 @@ def render():
 
     # Ensure results DataFrame exists and is valid
     if "results" not in st.session_state or st.session_state.results.empty:
-        st.warning("No results available. Please complete the round-robin stage first.")
+        st.warning("No results available. Please complete the round-robin stage first.", icon="🔒")
         st.stop()
 
     # Handle playoff_results safely
     if "playoff_results" not in st.session_state or st.session_state.playoff_results.empty:
-        st.warning("Playoffs have not been generated yet.")
+        st.warning("Playoffs have not been generated yet.", icon="🔒")
         playoff_results = pd.DataFrame()  # Assign an empty DataFrame as a fallback
     else:
         playoff_results = st.session_state.playoff_results.copy()
@@ -129,7 +129,7 @@ def render():
     ranked_standings = standings.sort_values(by=["Points", "Wins", "Goals", "xG"], ascending=False).reset_index(drop=True)
 
     if not league_complete:
-        #st.warning("Playoffs are locked until all round-robin matches are completed.")
+        #st.warning("Playoffs are locked until all round-robin matches are completed.",icon="🔒")
         print("Playoffs are locked until all round-robin matches are completed.")
     else:
         # Generate or fetch playoff results
@@ -157,7 +157,7 @@ def render():
 
         # Ensure the "Match" column exists before accessing it
         if "Match" not in playoff_results.columns:
-            st.error("The 'Match' column is missing from the playoff results. Please check the data generation process.")
+            st.error("The 'Match' column is missing from the playoff results. Please check the data generation process.", icon="❌")
             return
 
         # Safely access "Match" column
@@ -231,14 +231,14 @@ def render():
 
             # Check if playoff_results exists and ensure the "Match" column exists
             if "Match" not in playoff_results.columns:
-                st.error("The 'Match' column is missing from playoff results. Please check the data generation process.")
+                st.error("The 'Match' column is missing from playoff results. Please check the data generation process.", icon="❌")
                 return
 
             # Safely access non-finals matches
             non_finals_matches = playoff_results[~playoff_results["Match"].str.contains("Final", na=False)]
 
             if non_finals_matches.empty:
-                st.info("No non-finals matches available to update.")
+                st.info("No non-finals matches available to update.", icon="ℹ️")
             else:
                 # Create a selectbox for non-finals games
                 selected_game = st.selectbox("Select Game to Update", non_finals_matches["Game #"])
@@ -335,5 +335,5 @@ def render():
 
                         st.success(f"Results updated for {selected_game}", icon="✅")
         else:
-            st.warning("Playoffs are locked. Update Match Results will be available after playoffs are unlocked.")
+            st.warning("Playoffs are locked. Update Match Results will be available after playoffs are unlocked.", icon="🔒")
 

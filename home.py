@@ -74,7 +74,7 @@ def render_home():
 # Define pages
 home_page = st.Page(render_home, title="Home", icon="🎮", default=True)
 tournaments_page = st.Page("tournaments.py", title="Tournaments", icon="🏆")
-players_page = st.Page("players.py", title="Players", icon="🏃")
+players_page = st.Page("players.py", title="Players", icon="👤")
 stats_page = st.Page("stats.py", title="Stats", icon="📊")
 
 # Set the default page to Home

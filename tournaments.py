@@ -3,7 +3,7 @@ import pandas as pd
 import numpy as np
 
 # Custom libraries
-from utils.tournament_utils import (generate_schedule)
+from utils.tournament_utils import generate_schedule
 from utils.general_utils import initialize_session_state
 from utils.data_utils import load_player_data_local
 from tabs import (
@@ -27,7 +27,7 @@ st.set_page_config(
 st.markdown(
     """
     <div style="text-align: center; margin-bottom: 20px;">
-        <h1>🎮 Tournalytics 🎮</h1>
+        <h2>🎮 Tournalytics 🎮</h2>
     </div>
     """,
     unsafe_allow_html=True,
@@ -86,7 +86,7 @@ if st.session_state["active_section"] == "Tournament Setup":
 
 elif st.session_state["active_section"] == "Tournament Management":
     if not st.session_state["tournaments"]:
-        st.warning("No tournaments available. Please set up a tournament first.")
+        st.warning("No tournaments available. Please set up a tournament first.", icon="🔒")
         st.stop()
 
     # Management Tabs
@@ -94,6 +94,7 @@ elif st.session_state["active_section"] == "Tournament Management":
         tab1, tab2, tab3, tab4, tab5 = st.tabs(
             ["▶️ Start", "📊 Standings", "🏅 League", "⚔️ Playoffs", "🏆 Finals"]
 )
+        
     # Render each tab
     with tab1:
         selection_render()
