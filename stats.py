@@ -2,12 +2,27 @@ import streamlit as st
 from utils.analytics import get_tournament_stats
 
 # Set page configuration
-st.set_page_config(page_title="Tournament Stats", page_icon="📈", layout="wide")
+
+# Page Configuration for Mobile-First Design
+st.set_page_config(
+    page_title="Tournament Stats",
+    page_icon="📈",
+    layout="centered",  # Optimized for mobile
+    initial_sidebar_state="collapsed"
+)
+
 
 # Page content
-st.title("📈 Previous Tournament Stats 📈")
-st.subheader("Analyze performance and uncover insights from past tournaments.")
-
+# App Branding
+st.markdown(
+    """
+    <div style='text-align: center; margin-bottom: 20px;'>
+        <h2 style='margin-bottom: 5px;'>📈 Tournament Stats</h2>
+        <p style='font-size: 14px; color: #808080;'>Analyze performance and uncover insights from past tournaments..</p>
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
 # Fetch and display stats
 st.markdown("---")
 try:
@@ -39,4 +54,4 @@ except Exception as e:
 
 # Footer branding
 st.markdown("---")
-st.write("💡 Use this page to review past tournaments and improve your strategies.")
+st.write("💡 Page is Under Construction! In the future, you can use this page to review past tournaments and improve your strategies.")

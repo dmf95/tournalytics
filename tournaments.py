@@ -91,6 +91,7 @@ elif st.session_state["active_section"] == "Tournament Management":
 
     # Management Tabs
     if st.session_state.get("tournament_ready"):
+        st.write("blah")
         tab1, tab2, tab3, tab4, tab5 = st.tabs(
             ["▶️ Start", "📊 Standings", "🏅 League", "⚔️ Playoffs", "🏆 Finals"]
 )

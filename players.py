@@ -40,13 +40,13 @@ if "players" not in st.session_state:
 st.markdown(
     """
     <div style='text-align: center; margin-bottom: 20px;'>
-        <h2 style='margin-bottom: 5px;'>👤 Manage Players</h2>
+        <h2 style='margin-bottom: 0px;'>👤 Manage Players</h2>
         <p style='font-size: 14px; color: #808080;'>Manage existing Tournament Players.</p>
     </div>
     """,
     unsafe_allow_html=True,
 )
-
+st.markdown("---")
 # Add New Player Section
 st.markdown(
     """
