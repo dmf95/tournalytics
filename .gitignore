@@ -3,10 +3,17 @@ __pycache__/
 **/__pycache__/
 *.pyc
 *.pyo
-*.streamlit
+
+# Ignore Streamlit configuration and sensitive files
+.streamlit/
+**/.streamlit/  # Extra safety for nested .streamlit directories
+*.env  # Ignore environment variable files
+.env.*  # Ignore specific environment files (e.g., .env.production)
+
+# Ignore Firebase credentials
+*.json  # Caution: Only include this if no other JSON files need to be versioned
+!schema.json  # Example: Explicitly allow certain JSON files if needed
 
 # Ignore CSV files
 *.csv
-
-# Ignore archive directories
-*/archive
+*.tsv  # Add support for tab-separated value files, if applicabl
