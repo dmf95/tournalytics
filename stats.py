@@ -1,19 +1,7 @@
 import streamlit as st
-from utils.analytics import get_tournament_stats
-
-# Set page configuration
-
-# Page Configuration for Mobile-First Design
-st.set_page_config(
-    page_title="Tournament Stats",
-    page_icon="📈",
-    layout="centered",  # Optimized for mobile
-    initial_sidebar_state="collapsed"
-)
-
+from utils.analytics_utils import get_tournament_stats
 
 # Page content
-# App Branding
 st.markdown(
     """
     <div style='text-align: center; margin-bottom: 20px;'>

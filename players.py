@@ -3,14 +3,6 @@ from utils.data_utils import load_player_data_local, insert_new_player_data
 import random
 import pandas as pd
 
-# Page Configuration for Mobile-First Design
-st.set_page_config(
-    page_title="Players",
-    page_icon="👤",
-    layout="centered",  # Optimized for mobile
-    initial_sidebar_state="collapsed"
-)
-
 # Helper function to generate a unique 9-digit ID
 def generate_unique_player_id(existing_ids):
     while True:

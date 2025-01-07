@@ -16,14 +16,6 @@ from tabs import (
 )
 
 
-# Set page title and layout
-st.set_page_config(
-    page_title="Tournaments",
-    page_icon="🏆",
-    layout="centered",
-    initial_sidebar_state="collapsed",
-)
-
 st.markdown(
     """
     <div style="text-align: center; margin-bottom: 20px;">
@@ -91,7 +83,6 @@ elif st.session_state["active_section"] == "Tournament Management":
 
     # Management Tabs
     if st.session_state.get("tournament_ready"):
-        st.write("blah")
         tab1, tab2, tab3, tab4, tab5 = st.tabs(
             ["▶️ Start", "📊 Standings", "🏅 League", "⚔️ Playoffs", "🏆 Finals"]
 )

@@ -44,6 +44,7 @@ def save_tournament_complete(session_state, save_path="", verbose=False):
 
     tournament_id = session_state.selected_tournament_id
     tournament_metadata = session_state.tournaments.get(tournament_id, {})
+    tournament_metadata["tournament_id"] = tournament_id
 
     # Enhance the tables with the tournament_id column
     standings = session_state.standings.copy()

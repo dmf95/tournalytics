@@ -133,7 +133,7 @@ def render():
         print("Playoffs are locked until all round-robin matches are completed.")
     else:
         # Generate or fetch playoff results
-        if "playoff_results" not in st.session_state:
+        if "playoff_results" not in st.session_state or st.session_state["playoff_results"].empty:
             # Generate playoff bracket and initialize result columns
             playoff_bracket = generate_playoffs_bracket(ranked_standings, last_game_id)
 
@@ -153,7 +153,7 @@ def render():
         
         # TODO: Display the playoff results for debugging
         # st.subheader("Playoff Bracket")
-        # st.dataframe(playoff_results)
+        #st.dataframe(playoff_bracket)
 
         # Ensure the "Match" column exists before accessing it
         if "Match" not in playoff_results.columns:
@@ -216,6 +216,9 @@ def render():
             use_container_width=True,
             hide_index=True,
         )
+
+        # Determine the starting Game ID for playoffs
+        all_round_robin_complete = st.session_state.results.dropna(subset=["Home Goals", "Away Goals"]).shape[0] == st.session_state.results.shape[0]
 
         # Allow updating results for playoff games only if playoffs are not locked
         if all_round_robin_complete and not playoff_results.empty:

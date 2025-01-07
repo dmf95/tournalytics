@@ -1,135 +1,135 @@
 {
     "standings": [
         {
+            "Player": "Thomas Tassone",
+            "Team": "Team Thomas",
+            "Points": 7,
+            "Goals": 2,
+            "xG": 0.7,
+            "Games Played": 5,
+            "tournament_id": "99a15f02"
+        },
+        {
             "Player": "Domenic Fayad",
             "Team": "Manchester United",
             "Points": 5,
             "Goals": 0,
             "xG": 0.0,
             "Games Played": 5,
-            "tournament_id": "ba6b4c4e"
+            "tournament_id": "99a15f02"
         },
         {
             "Player": "Cameron Brock",
-            "Team": "Liverpool",
+            "Team": "Team Cameron",
             "Points": 5,
             "Goals": 0,
             "xG": 0.0,
             "Games Played": 5,
-            "tournament_id": "ba6b4c4e"
-        },
-        {
-            "Player": "Thomas Tassone",
-            "Team": "Chelsea",
-            "Points": 5,
-            "Goals": 0,
-            "xG": 0.0,
-            "Games Played": 5,
-            "tournament_id": "ba6b4c4e"
+            "tournament_id": "99a15f02"
         },
         {
             "Player": "Michael Hanuman",
-            "Team": "Manchester City",
+            "Team": "Team Michael",
             "Points": 5,
             "Goals": 0,
             "xG": 0.0,
             "Games Played": 5,
-            "tournament_id": "ba6b4c4e"
+            "tournament_id": "99a15f02"
         },
         {
             "Player": "Luigi Polisi",
-            "Team": "Real Madrid",
+            "Team": "Team Luigi",
             "Points": 5,
             "Goals": 0,
             "xG": 0.0,
             "Games Played": 5,
-            "tournament_id": "ba6b4c4e"
+            "tournament_id": "99a15f02"
         },
         {
             "Player": "Aria Sarhangpour",
-            "Team": "Barcelona",
-            "Points": 5,
-            "Goals": 0,
-            "xG": 0.0,
+            "Team": "Team Aria",
+            "Points": 4,
+            "Goals": 1,
+            "xG": 0.4,
             "Games Played": 5,
-            "tournament_id": "ba6b4c4e"
+            "tournament_id": "99a15f02"
         }
     ],
     "results": [
         {
             "Game #": "Game01",
             "Round": 1,
-            "Home": "Michael Hanuman",
+            "Home": "Thomas Tassone",
             "Away": "Aria Sarhangpour",
             "Console": "Console 1",
-            "Home Team": "Manchester City",
-            "Away Team": "Barcelona",
+            "Home Team": "Team Thomas",
+            "Away Team": "Team Aria",
             "Played": NaN,
-            "Home Goals": 0.0,
-            "Away Goals": 0.0,
-            "Home xG": 0.0,
-            "Away xG": 0.0,
-            "tournament_id": "ba6b4c4e"
+            "Home Goals": 2.0,
+            "Away Goals": 1.0,
+            "Home xG": 0.7,
+            "Away xG": 0.4,
+            "tournament_id": "99a15f02"
         },
         {
             "Game #": "Game02",
             "Round": 1,
             "Home": "Domenic Fayad",
-            "Away": "Thomas Tassone",
+            "Away": "Michael Hanuman",
             "Console": "Console 2",
             "Home Team": "Manchester United",
-            "Away Team": "Chelsea",
+            "Away Team": "Team Michael",
             "Played": NaN,
             "Home Goals": 0.0,
             "Away Goals": 0.0,
             "Home xG": 0.0,
             "Away xG": 0.0,
-            "tournament_id": "ba6b4c4e"
+            "tournament_id": "99a15f02"
         },
         {
             "Game #": "Game03",
             "Round": 2,
-            "Home": "Cameron Brock",
+            "Home": "Luigi Polisi",
             "Away": "Domenic Fayad",
             "Console": "Console 1",
-            "Home Team": "Liverpool",
+            "Home Team": "Team Luigi",
             "Away Team": "Manchester United",
             "Played": NaN,
             "Home Goals": 0.0,
             "Away Goals": 0.0,
             "Home xG": 0.0,
             "Away xG": 0.0,
-            "tournament_id": "ba6b4c4e"
+            "tournament_id": "99a15f02"
         },
         {
             "Game #": "Game04",
             "Round": 2,
-            "Home": "Luigi Polisi",
+            "Home": "Cameron Brock",
             "Away": "Michael Hanuman",
             "Console": "Console 2",
-            "Home Team": "Real Madrid",
-            "Away Team": "Manchester City",
+            "Home Team": "Team Cameron",
+            "Away Team": "Team Michael",
             "Played": NaN,
             "Home Goals": 0.0,
             "Away Goals": 0.0,
             "Home xG": 0.0,
             "Away xG": 0.0,
-            "tournament_id": "ba6b4c4e"
+            "tournament_id": "99a15f02"
         },
         {
             "Game #": "Game05",
             "Round": 3,
-            "Home": "Thomas Tassone",
-            "Away": "Cameron Brock",
+            "Home": "Cameron Brock",
+            "Away": "Luigi Polisi",
             "Console": "Console 1",
-            "Home Team": "Chelsea",
-            "Away Team": "Liverpool",
+            "Home Team": "Team Cameron",
+            "Away Team": "Team Luigi",
             "Played": NaN,
             "Home Goals": 0.0,
             "Away Goals": 0.0,
             "Home xG": 0.0,
             "Away xG": 0.0,
-            "tournament_id": "ba6b4c4e"
+            "tournament_id": "99a15f02"
         },
         {
             "Game #": "Game06",
@@ -137,199 +137,199 @@
             "Home": "Aria Sarhangpour",
             "Away": "Domenic Fayad",
             "Console": "Console 2",
-            "Home Team": "Barcelona",
+            "Home Team": "Team Aria",
             "Away Team": "Manchester United",
             "Played": NaN,
             "Home Goals": 0.0,
             "Away Goals": 0.0,
             "Home xG": 0.0,
             "Away xG": 0.0,
-            "tournament_id": "ba6b4c4e"
+            "tournament_id": "99a15f02"
         },
         {
             "Game #": "Game07",
             "Round": 4,
-            "Home": "Domenic Fayad",
+            "Home": "Michael Hanuman",
             "Away": "Luigi Polisi",
             "Console": "Console 1",
-            "Home Team": "Manchester United",
-            "Away Team": "Real Madrid",
+            "Home Team": "Team Michael",
+            "Away Team": "Team Luigi",
             "Played": NaN,
             "Home Goals": 0.0,
             "Away Goals": 0.0,
             "Home xG": 0.0,
             "Away xG": 0.0,
-            "tournament_id": "ba6b4c4e"
+            "tournament_id": "99a15f02"
         },
         {
             "Game #": "Game08",
             "Round": 4,
-            "Home": "Thomas Tassone",
-            "Away": "Aria Sarhangpour",
+            "Home": "Domenic Fayad",
+            "Away": "Cameron Brock",
             "Console": "Console 2",
-            "Home Team": "Chelsea",
-            "Away Team": "Barcelona",
+            "Home Team": "Manchester United",
+            "Away Team": "Team Cameron",
             "Played": NaN,
             "Home Goals": 0.0,
             "Away Goals": 0.0,
             "Home xG": 0.0,
             "Away xG": 0.0,
-            "tournament_id": "ba6b4c4e"
+            "tournament_id": "99a15f02"
         },
         {
             "Game #": "Game09",
             "Round": 5,
-            "Home": "Luigi Polisi",
-            "Away": "Thomas Tassone",
+            "Home": "Thomas Tassone",
+            "Away": "Cameron Brock",
             "Console": "Console 1",
-            "Home Team": "Real Madrid",
-            "Away Team": "Chelsea",
+            "Home Team": "Team Thomas",
+            "Away Team": "Team Cameron",
             "Played": NaN,
             "Home Goals": 0.0,
             "Away Goals": 0.0,
             "Home xG": 0.0,
             "Away xG": 0.0,
-            "tournament_id": "ba6b4c4e"
+            "tournament_id": "99a15f02"
         },
         {
             "Game #": "Game10",
             "Round": 5,
-            "Home": "Cameron Brock",
-            "Away": "Aria Sarhangpour",
+            "Home": "Aria Sarhangpour",
+            "Away": "Luigi Polisi",
             "Console": "Console 2",
-            "Home Team": "Liverpool",
-            "Away Team": "Barcelona",
+            "Home Team": "Team Aria",
+            "Away Team": "Team Luigi",
             "Played": NaN,
             "Home Goals": 0.0,
             "Away Goals": 0.0,
             "Home xG": 0.0,
             "Away xG": 0.0,
-            "tournament_id": "ba6b4c4e"
+            "tournament_id": "99a15f02"
         },
         {
             "Game #": "Game11",
             "Round": 6,
-            "Home": "Michael Hanuman",
-            "Away": "Domenic Fayad",
+            "Home": "Luigi Polisi",
+            "Away": "Thomas Tassone",
             "Console": "Console 1",
-            "Home Team": "Manchester City",
-            "Away Team": "Manchester United",
+            "Home Team": "Team Luigi",
+            "Away Team": "Team Thomas",
             "Played": NaN,
             "Home Goals": 0.0,
             "Away Goals": 0.0,
             "Home xG": 0.0,
             "Away xG": 0.0,
-            "tournament_id": "ba6b4c4e"
+            "tournament_id": "99a15f02"
         },
         {
             "Game #": "Game12",
             "Round": 6,
-            "Home": "Cameron Brock",
-            "Away": "Luigi Polisi",
+            "Home": "Michael Hanuman",
+            "Away": "Aria Sarhangpour",
             "Console": "Console 2",
-            "Home Team": "Liverpool",
-            "Away Team": "Real Madrid",
+            "Home Team": "Team Michael",
+            "Away Team": "Team Aria",
             "Played": NaN,
             "Home Goals": 0.0,
             "Away Goals": 0.0,
             "Home xG": 0.0,
             "Away xG": 0.0,
-            "tournament_id": "ba6b4c4e"
+            "tournament_id": "99a15f02"
         },
         {
             "Game #": "Game13",
             "Round": 7,
-            "Home": "Aria Sarhangpour",
-            "Away": "Luigi Polisi",
+            "Home": "Domenic Fayad",
+            "Away": "Thomas Tassone",
             "Console": "Console 1",
-            "Home Team": "Barcelona",
-            "Away Team": "Real Madrid",
+            "Home Team": "Manchester United",
+            "Away Team": "Team Thomas",
             "Played": NaN,
             "Home Goals": 0.0,
             "Away Goals": 0.0,
             "Home xG": 0.0,
             "Away xG": 0.0,
-            "tournament_id": "ba6b4c4e"
+            "tournament_id": "99a15f02"
         },
         {
             "Game #": "Game14",
             "Round": 7,
-            "Home": "Thomas Tassone",
-            "Away": "Michael Hanuman",
+            "Home": "Cameron Brock",
+            "Away": "Aria Sarhangpour",
             "Console": "Console 2",
-            "Home Team": "Chelsea",
-            "Away Team": "Manchester City",
+            "Home Team": "Team Cameron",
+            "Away Team": "Team Aria",
             "Played": NaN,
             "Home Goals": 0.0,
             "Away Goals": 0.0,
             "Home xG": 0.0,
             "Away xG": 0.0,
-            "tournament_id": "ba6b4c4e"
+            "tournament_id": "99a15f02"
         },
         {
             "Game #": "Game15",
             "Round": 8,
-            "Home": "Michael Hanuman",
-            "Away": "Cameron Brock",
+            "Home": "Thomas Tassone",
+            "Away": "Michael Hanuman",
             "Console": "Console 1",
-            "Home Team": "Manchester City",
-            "Away Team": "Liverpool",
+            "Home Team": "Team Thomas",
+            "Away Team": "Team Michael",
             "Played": NaN,
             "Home Goals": 0.0,
             "Away Goals": 0.0,
             "Home xG": 0.0,
             "Away xG": 0.0,
-            "tournament_id": "ba6b4c4e"
+            "tournament_id": "99a15f02"
         }
     ],
     "playoff_results": [
         {
             "Game #": "Game16",
             "Round": 1,
-            "Home": "Aria Sarhangpour",
-            "Away": "Domenic Fayad",
+            "Home": "Cameron Brock",
+            "Away": "Aria Sarhangpour",
             "Console": "Console 1",
             "Match": "WC1",
-            "Home Goals": 0.0,
+            "Home Goals": 1.0,
             "Away Goals": 0.0,
             "Home xG": 0.0,
             "Away xG": 0.0,
             "Status": "\u2705",
-            "tournament_id": "ba6b4c4e"
+            "tournament_id": "99a15f02"
         },
         {
             "Game #": "Game17",
             "Round": 2,
-            "Home": "Domenic Fayad",
-            "Away": "Aria Sarhangpour",
+            "Home": "Aria Sarhangpour",
+            "Away": "Cameron Brock",
             "Console": "Console 2",
             "Match": "WC1",
-            "Home Goals": 1.0,
+            "Home Goals": 0.0,
             "Away Goals": 0.0,
-            "Home xG": 0.1,
+            "Home xG": 0.0,
             "Away xG": 0.0,
             "Status": "\u2705",
-            "tournament_id": "ba6b4c4e"
+            "tournament_id": "99a15f02"
         },
         {
             "Game #": "Game18",
             "Round": 1,
-            "Home": "Luigi Polisi",
-            "Away": "Michael Hanuman",
+            "Home": "Michael Hanuman",
+            "Away": "Luigi Polisi",
             "Console": "Console 1",
             "Match": "WC2",
             "Home Goals": 1.0,
             "Away Goals": 0.0,
-            "Home xG": 0.1,
+            "Home xG": 0.0,
             "Away xG": 0.0,
             "Status": "\u2705",
-            "tournament_id": "ba6b4c4e"
+            "tournament_id": "99a15f02"
         },
         {
             "Game #": "Game19",
             "Round": 2,
-            "Home": "Michael Hanuman",
-            "Away": "Luigi Polisi",
+            "Home": "Luigi Polisi",
+            "Away": "Michael Hanuman",
             "Console": "Console 2",
             "Match": "WC2",
             "Home Goals": 0.0,
@@ -337,27 +337,27 @@
             "Home xG": 0.0,
             "Away xG": 0.0,
             "Status": "\u2705",
-            "tournament_id": "ba6b4c4e"
+            "tournament_id": "99a15f02"
         },
         {
             "Game #": "Game20",
             "Round": 2,
-            "Home": "Cameron Brock",
-            "Away": "Luigi Polisi",
+            "Home": "Thomas Tassone",
+            "Away": "Michael Hanuman",
             "Console": "Console 1",
             "Match": "SF1",
-            "Home Goals": 0.0,
+            "Home Goals": 1.0,
             "Away Goals": 0.0,
             "Home xG": 0.0,
             "Away xG": 0.0,
             "Status": "\u2705",
-            "tournament_id": "ba6b4c4e"
+            "tournament_id": "99a15f02"
         },
         {
             "Game #": "Game21",
             "Round": 3,
-            "Home": "Luigi Polisi",
-            "Away": "Cameron Brock",
+            "Home": "Michael Hanuman",
+            "Away": "Thomas Tassone",
             "Console": "Console 2",
             "Match": "SF1",
             "Home Goals": 0.0,
@@ -365,27 +365,27 @@
             "Home xG": 0.0,
             "Away xG": 0.0,
             "Status": "\u2705",
-            "tournament_id": "ba6b4c4e"
+            "tournament_id": "99a15f02"
         },
         {
             "Game #": "Game22",
             "Round": 3,
-            "Home": "Thomas Tassone",
-            "Away": "Domenic Fayad",
+            "Home": "Domenic Fayad",
+            "Away": "Cameron Brock",
             "Console": "Console 1",
             "Match": "SF2",
-            "Home Goals": 0.0,
+            "Home Goals": 1.0,
             "Away Goals": 0.0,
             "Home xG": 0.0,
             "Away xG": 0.0,
             "Status": "\u2705",
-            "tournament_id": "ba6b4c4e"
+            "tournament_id": "99a15f02"
         },
         {
             "Game #": "Game23",
             "Round": 4,
-            "Home": "Domenic Fayad",
-            "Away": "Thomas Tassone",
+            "Home": "Cameron Brock",
+            "Away": "Domenic Fayad",
             "Console": "Console 2",
             "Match": "SF2",
             "Home Goals": 0.0,
@@ -393,12 +393,12 @@
             "Home xG": 0.0,
             "Away xG": 0.0,
             "Status": "\u2705",
-            "tournament_id": "ba6b4c4e"
+            "tournament_id": "99a15f02"
         },
         {
             "Game #": "Game24",
             "Round": 4,
-            "Home": "Luigi Polisi",
+            "Home": "Thomas Tassone",
             "Away": "Domenic Fayad",
             "Console": "Console 1",
             "Match": "Final",
@@ -406,28 +406,27 @@
             "Away Goals": 0.0,
             "Home xG": 0.0,
             "Away xG": 0.0,
-            "Status": "\u2705",
-            "tournament_id": "ba6b4c4e"
+            "Status": "",
+            "tournament_id": "99a15f02"
         },
         {
             "Game #": "Game25",
             "Round": 5,
             "Home": "Domenic Fayad",
-            "Away": "Luigi Polisi",
+            "Away": "Thomas Tassone",
             "Console": "Console 1",
             "Match": "Final",
-            "Home Goals": 2.0,
+            "Home Goals": 1.0,
             "Away Goals": 0.0,
-            "Home xG": 0.2,
+            "Home xG": 0.0,
             "Away xG": 0.0,
-            "Status": "\u2705",
-            "tournament_id": "ba6b4c4e"
+            "Status": "",
+            "tournament_id": "99a15f02"
         }
     ],
     "metadata": {
-        "tournament_id": "ba6b4c4e",
-        "tournament_name": "2025 Cam Brock Invitational",
-        "event_date": "2025-01-01",
+        "tournament_name": "test",
+        "event_date": "2025-01-06",
         "tournament_type": "Round Robin",
         "num_players": 6,
         "num_consoles": 2,
@@ -437,16 +436,17 @@
             "Cameron Brock",
             "Thomas Tassone",
             "Michael Hanuman",
-            "Luigi Polisi",
-            "Aria Sarhangpour"
+            "Aria Sarhangpour",
+            "Luigi Polisi"
         ],
         "team_selection": {
             "Domenic Fayad": "Manchester United",
-            "Cameron Brock": "Liverpool",
-            "Thomas Tassone": "Chelsea",
-            "Michael Hanuman": "Manchester City",
-            "Luigi Polisi": "Real Madrid",
-            "Aria Sarhangpour": "Barcelona"
-        }
+            "Cameron Brock": "Team Cameron",
+            "Thomas Tassone": "Team Thomas",
+            "Michael Hanuman": "Team Michael",
+            "Aria Sarhangpour": "Team Aria",
+            "Luigi Polisi": "Team Luigi"
+        },
+        "tournament_id": "99a15f02"
     }
 }

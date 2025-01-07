@@ -35,8 +35,7 @@ def render():
         return
 
     display_final_matches(final_matches)
-    handle_results_saving()
-    handle_results_update(final_matches)
+
 
 # Helper: Validate semi-final completion
 def validate_semi_final_completion(playoff_results):
@@ -79,7 +78,11 @@ def display_final_matches(final_matches):
 
     # Display champion if all finals are completed
     if not final_matches["Home Goals"].isna().any() and not final_matches["Away Goals"].isna().any():
+        handle_results_saving()
         display_champion(final_matches)
+
+    st.markdown("---")
+    handle_results_update(final_matches)
 
 # Helper: Display champion
 def display_champion(final_matches):
