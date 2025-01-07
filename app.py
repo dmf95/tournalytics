@@ -35,7 +35,7 @@ if st.session_state["authenticated"]:
         st.session_state["authenticated"] = False
         st.session_state["username"] = None
         st.session_state["role"] = None
-        st.experimental_rerun()
+        st.rerun()
 
     # Define role-based navigation
     role_pages = {
