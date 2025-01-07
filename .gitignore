@@ -3,7 +3,18 @@ __pycache__/
 **/__pycache__/
 *.pyc
 *.pyo
+
+# Ignore __pycache__ in utils/
+utils/__pycache__/
+
+# Ignore __pycache__ in tabs/
+tabs/__pycache__/
+
+# Ignore Python bytecode files globally
 *.py[cod]
+
+# Ignore all JSON files in the assets/ folder
+assets/*.json
 
 # Ignore Streamlit configuration and sensitive files
 .streamlit/
