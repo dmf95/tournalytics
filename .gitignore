@@ -21,7 +21,7 @@ assets/*.json
 **/.streamlit/  # Extra safety for nested .streamlit directories
 *.env  # Ignore environment variable files
 .env.*  # Ignore specific environment files (e.g., .env.production)
-
+.env
 # Ignore Firebase credentials
 *.json  # Caution: Only include this if no other JSON files need to be versioned
 !schema.json  # Example: Explicitly allow certain JSON files if needed
@@ -29,3 +29,5 @@ assets/*.json
 # Ignore CSV files
 *.csv
 *.tsv  # Add support for tab-separated value files, if applicabl
+
+# Ignore .env files
