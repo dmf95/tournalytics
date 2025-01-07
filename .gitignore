@@ -3,6 +3,7 @@ __pycache__/
 **/__pycache__/
 *.pyc
 *.pyo
+*.py[cod]
 
 # Ignore Streamlit configuration and sensitive files
 .streamlit/
