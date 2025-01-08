@@ -1,6 +1,8 @@
 import pandas as pd
 import random
 import streamlit as st
+import random
+import numpy as np
 
 # Helper Functions
 def validate_schedule(schedule):
@@ -27,44 +29,62 @@ def set_schedule(schedule):
     st.session_state["tournament_ready"] = True
 
 
-# Function to generate a round-robin schedule considering consoles, minimizing concurrent games
-def generate_schedule(players, teams, num_consoles):
+def generate_league_schedule(players, teams, num_consoles, league_format="Play-Everyone"):
+    """
+    Generate a league schedule considering consoles, minimizing concurrent games.
+
+    Args:
+        players (list): List of player names.
+        teams (dict): Mapping of players to their teams.
+        num_consoles (int): Number of consoles available.
+        league_format (str): Format of league games (e.g., "Play-Everyone").
+
+    Returns:
+        list: A schedule of league games.
+    """
+    # Validate league format
+    if league_format != "Play-Everyone":
+        raise ValueError(f"Unsupported league format: {league_format}")
+
+    # Initialize variables
     schedule = []
     num_players = len(players)
     matchups = [(players[i], players[j]) for i in range(num_players) for j in range(i + 1, num_players)]
-    random.shuffle(matchups)  # Shuffle to randomize the schedule
+    random.shuffle(matchups)  # Randomize matchups for diversity
+
     home_away_count = {player: 0 for player in players}
-    game_id = 1  # Unique game ID counter
+    game_id = 1
     round_num = 1
 
+    # Generate schedule
     while matchups:
         games_in_round = []
         players_in_round = set()
         used_consoles = set()
 
-        # Attempt to fill the round with up to `num_consoles` games
         while len(games_in_round) < num_consoles and matchups:
             home, away = matchups.pop(0)
 
-            # Ensure no player duplication in the current round
+            # Skip if players are already scheduled in this round
             if home in players_in_round or away in players_in_round:
-                matchups.append((home, away))  # Defer to a later round
+                matchups.append((home, away))
                 continue
 
-            # Assign the next available console
+            # Assign console
             console = f"Console {len(used_consoles) + 1}"
             if console in used_consoles:
-                matchups.append((home, away))  # Defer to a later round
+                matchups.append((home, away))
                 continue
 
             used_consoles.add(console)
 
-            # Balance home/away games
+            # Balance home and away games
             if home_away_count[home] > home_away_count[away]:
                 home, away = away, home
 
+            # Add game to the round
             games_in_round.append({
-                "Game #": f"Game{game_id:02}",  # Format game_id to two digits
+                "Game #": f"Game{game_id:02}",
                 "Round": round_num,
                 "Home": home,
                 "Away": away,
@@ -74,16 +94,18 @@ def generate_schedule(players, teams, num_consoles):
                 "Played": ""  # Placeholder for played status
             })
 
-            players_in_round.add(home)
-            players_in_round.add(away)
+            # Update state
+            players_in_round.update([home, away])
             home_away_count[home] += 1
             game_id += 1
 
-        # Add the completed round to the schedule
+        # Add completed round to the schedule
         schedule.extend(games_in_round)
         round_num += 1
 
     return schedule
+
+
 
 # Function to validate the schedule
 def validate_schedule(schedule, num_consoles):
@@ -212,6 +234,89 @@ def calculate_tournament_duration(schedule, half_duration):
     team_management_time = num_teams * num_consoles * 2  # 2 minutes per team per console
 
     return total_duration, team_management_time
+
+def estimate_tournament_duration(num_players, num_consoles, half_duration, league_format, playoff_format):
+    """
+    Estimate the total duration of the tournament based on league and playoff formats, considering consoles.
+
+    Args:
+        num_players (int): Total number of players in the tournament.
+        num_consoles (int): Number of consoles available.
+        half_duration (int): Duration of one half in minutes.
+        league_format (str): Format of league games (e.g., "Play-Everyone").
+        playoff_format (str): Format of playoff games (e.g., "Single-Elimination", "Double-Elimination").
+
+    Returns:
+        dict: Breakdown of the estimated tournament duration.
+    """
+    # Define constants
+    game_duration = (half_duration * 2) + 3  # Two halves + 3-minute break
+
+    # League duration calculation
+    if league_format == "Play-Everyone":
+        # Each team plays every other team once
+        total_league_games = num_players * (num_players - 1) // 2
+    else:
+        raise ValueError(f"Unsupported league format: {league_format}")
+
+    # Calculate league rounds based on consoles
+    league_rounds = (total_league_games + num_consoles - 1) // num_consoles  # Ceiling division
+    total_league_duration = league_rounds * game_duration
+
+    # Playoff duration calculation
+    if playoff_format == "Single-Elimination":
+        # Top 6 teams: 4 wildcard games (1 match), 2 semifinals (1 match), 1 final (1 match)
+        total_playoff_games = 4 + 2 + 1
+        playoff_rounds = (total_playoff_games + num_consoles - 1) // num_consoles  # Ceiling division
+    elif playoff_format == "Double-Elimination":
+        # Top 6 teams: 4 wildcard games (home/away), 2 semifinals (home/away), 2 finals (home/away)
+        # Wildcards (4 games = 2 matchups * 2 rounds)
+        wildcard_games = 4
+        wildcard_rounds = (wildcard_games + num_consoles - 1) // num_consoles  # Ceiling division
+
+        # Semifinals (4 games = 2 matchups * 2 rounds)
+        semifinal_games = 4
+        semifinal_rounds = (semifinal_games + num_consoles - 1) // num_consoles  # Ceiling division
+
+        # Finals (2 games = 1 matchup * 2 rounds, single console per game)
+        final_games = 2
+        final_rounds = final_games  # Each game requires a separate round due to single-console limitation
+
+        total_playoff_games = wildcard_games + semifinal_games + final_games
+        playoff_rounds = wildcard_rounds + semifinal_rounds + final_rounds
+    else:
+        raise ValueError(f"Unsupported playoff format: {playoff_format}")
+
+    # Calculate playoff duration
+    total_playoff_duration = playoff_rounds * game_duration
+
+    # Calculate team management time
+    team_management_time = num_players * num_consoles * 2  # 2 minutes per team per console
+
+    # Calculate total duration
+    total_duration = total_league_duration + total_playoff_duration + team_management_time
+
+    # Convert to hours and minutes
+    total_hours = total_duration // 60
+    total_minutes = total_duration % 60
+
+    # Output detailed breakdown for debugging or user insights
+    breakdown = {
+        "total_league_games": total_league_games,
+        "total_league_rounds": league_rounds,
+        "total_league_duration": total_league_duration,
+        "total_playoff_games": total_playoff_games,
+        "total_playoff_rounds": playoff_rounds,
+        "total_playoff_duration": total_playoff_duration,
+        "team_management_time": team_management_time,
+        "total_duration_minutes": total_duration,
+        "total_hours": total_hours,
+        "total_minutes": total_minutes,
+    }
+
+    return breakdown
+
+
 
 # Function to generate playoffs bracket
 def generate_playoffs_bracket(standings, last_game_id):

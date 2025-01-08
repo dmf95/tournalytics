@@ -7,7 +7,7 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 # custom libraries
-from utils.tournament_utils import generate_schedule
+from utils.tournament_utils import generate_league_schedule, estimate_tournament_duration
 from utils.general_utils import initialize_session_state
 
 #-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-
@@ -42,17 +42,47 @@ def render():
     st.session_state["selected_tournament_id"] = selected_tournament_id
     tournament_details = st.session_state["tournaments"][selected_tournament_id]
 
-    # Tournament Details Section
-    with st.expander("🏆 Tournament Details", expanded=False):
-        st.write(f"**Name:** {tournament_details['tournament_name']}")
-        st.write(f"**Date:** {tournament_details['event_date']}")
-        st.write(f"**Type:** {tournament_details['tournament_type']}")
-        st.write(f"**Players:** {tournament_details['num_players']}")
-        st.write(f"**Consoles:** {tournament_details['num_consoles']}")
-        st.write(f"**Half Duration:** {tournament_details['half_duration']} minutes")
+    # Estimate tournament duration
+    duration_breakdown = estimate_tournament_duration(
+        num_players=st.session_state["num_players"],
+        num_consoles=st.session_state["num_consoles"],
+        half_duration=st.session_state["half_duration"],
+        league_format=st.session_state["league_format"],
+        playoff_format=st.session_state["playoff_format"],
+    )
 
-    # Players & Teams Section
+    #-1-tournament details expander
+    with st.expander("🏆 Tournament Details", expanded=False):
+        # Tournament details
+        st.markdown(f"### 🏆 **{st.session_state['tournament_name']}**")
+        # Tournament details
+        st.write(f"**📅 Date:** {tournament_details['event_date']}")
+        st.write(f"**🎯 Type:** {tournament_details['tournament_type']}")
+        st.write(f"**🏅 League Format:** {tournament_details['league_format']}")
+        st.write(f"**⚔️ Playoff Format:** {tournament_details['playoff_format']}")
+        st.write(f"**👥 Players:** {tournament_details['num_players']}")
+        st.write(f"**🎮 Consoles:** {tournament_details['num_consoles']}")
+        st.write(f"**⏱️ Half Duration:** {tournament_details['half_duration']} minutes")
+
+    #-2-estimated duration expander
+    with st.expander("⏳ Estimated Duration", expanded=False):
+        # Divider for duration section
+        st.markdown(f"#### **⏳ ~Est: {duration_breakdown['total_hours']} hours & {duration_breakdown['total_minutes']} minutes**")
+        # League duration details
+        st.markdown("**🏅 League Games**")
+        st.write(f"- **Total Games:** {duration_breakdown['total_league_games']} across {duration_breakdown['total_league_rounds']} rounds")
+        st.write(f"- **Estimated Duration:** ~{duration_breakdown['total_league_duration']} minutes")
+        # Playoff duration details
+        st.markdown("**⚔️ Playoff Games**")
+        st.write(f"- **Total Games:** {duration_breakdown['total_playoff_games']} across {duration_breakdown['total_playoff_rounds']} rounds")
+        st.write(f"- **Estimated Duration:** ~{duration_breakdown['total_playoff_duration']} minutes")
+        # Additional time
+        st.markdown("**⏱️ Additional Time**")
+        st.write(f"- **Team Management Time:** ~{duration_breakdown['team_management_time']} minutes")
+
+    #-3-players and team selection expander
     with st.expander("👤 Players & Teams", expanded=False):
+        st.markdown(f"### 👤**Player Teams**")
         for player, team in tournament_details["team_selection"].items():
             st.write(f"- {player}: {team}")
 
@@ -82,7 +112,7 @@ def render():
             st.session_state["teams"] = teams
 
             # Call the generate_schedule function
-            schedule = generate_schedule(players, teams, num_consoles)
+            schedule = generate_league_schedule(players, teams, num_consoles)
 
             # Store schedule and initialize results in session state
             st.session_state["schedule"] = schedule

@@ -3,7 +3,7 @@ import pandas as pd
 import numpy as np
 
 # Custom libraries
-from utils.tournament_utils import generate_schedule
+from utils.tournament_utils import generate_league_schedule
 from utils.general_utils import initialize_session_state
 from utils.data_utils import load_player_data_local
 from tabs import (

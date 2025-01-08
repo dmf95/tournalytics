@@ -1,7 +1,7 @@
 import streamlit as st
 from utils import (
     generate_tournament_id,
-    generate_schedule,
+    generate_league_schedule,
     validate_schedule,
     initialize_standings,
     upsert_results,
@@ -71,7 +71,7 @@ def main():
         st.session_state["tournament_id"] = generate_tournament_id()
         st.session_state["players"] = selected_players
         st.session_state["teams"] = team_selection
-        st.session_state["schedule"] = generate_schedule(selected_players, team_selection, num_consoles)
+        st.session_state["schedule"] = generate_league_schedule(selected_players, team_selection, num_consoles)
         validation_messages = validate_schedule(st.session_state["schedule"], num_consoles)
         st.session_state["results"] = pd.DataFrame(st.session_state["schedule"])
         st.session_state["results"]["Home Goals"] = np.nan

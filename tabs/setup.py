@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 from utils.general_utils import generate_tournament_id
 from utils.data_utils import load_player_data_local
+from utils.tournament_utils import estimate_tournament_duration
 
 def update_current_step():
     """Updates the current step based on the progress flags."""
@@ -33,9 +34,29 @@ def render_start_over_button(tab):
     
     # Logic for Reset
     if start_over_button:
-        # Clear relevant session state variables
-        st.session_state.clear()
-
+        # Clear only tournament-related session state variables
+        keys_to_clear = [
+            "tournament_name",
+            "event_date",
+            "league_format",
+            "playoff_format",
+            "tournament_type",
+            "num_players",
+            "num_consoles",
+            "half_duration",
+            "players_selected",
+            "selected_players",
+            "team_selection",
+            "create_complete",
+            "setup_complete",
+            "finish_generated",
+            "current_step",
+            "active_tab",
+            "tournament_ready",
+        ]
+        for key in keys_to_clear:
+            if key in st.session_state:
+                del st.session_state[key]
         # Reinitialize necessary session state variables
         st.session_state["tournaments"] = {}
         st.session_state["create_complete"] = False
@@ -46,6 +67,7 @@ def render_start_over_button(tab):
         st.session_state["active_tab"] = "🛠️ 01 Create"
 
         # Rerun the script
+        st.success("Setup has been reset. You can start over!", icon="🔄")
         st.rerun()
 
 
@@ -188,9 +210,18 @@ def render():
             )
         else:
             
-            tournament_type = st.selectbox(
-                "Select Tournament Type",
-                ["Round Robin", "Single Elimination", "Double Elimination"],
+            # Tournament Type
+            league_format = st.selectbox(
+                "Select League Format",
+                ["Play-Everyone"],
+                help="Choose how league games are scheduled. Currently, the default is 'Play-Everyone,' where each team plays all others once.",
+            )
+
+            # Playoff Format
+            playoff_format = st.selectbox(
+                "Select Playoff Format",
+                ["Double-Elimination", "Single-Elimination"],
+                help="Decide how playoff games are structured. The top 6 league teams advance to playoffs: top 2 receive byes, and the next 4 compete in wildcard games.",
             )
 
             col1, col2 = st.columns(2, gap="medium")
@@ -230,7 +261,9 @@ def render():
 
             if proceed_button:
                 st.session_state["setup_complete"] = True
-                st.session_state["tournament_type"] = tournament_type
+                st.session_state["league_format"] = league_format
+                st.session_state["playoff_format"] = playoff_format
+                st.session_state["tournament_type"] =  f'League ({st.session_state["num_players"]}-Team-{league_format}) Playoffs (6-Team-{playoff_format})'
                 st.success(
                     "General Setup completed! Proceed to the next step.", icon="✅"
                 )
@@ -340,16 +373,43 @@ def render():
         if not st.session_state["players_selected"]:
             st.warning("Complete the Player Selection step first to unlock this tab.", icon="🔒")
         else:
+            # Estimate tournament duration
+            duration_breakdown = estimate_tournament_duration(
+                num_players=st.session_state["num_players"],
+                num_consoles=st.session_state["num_consoles"],
+                half_duration=st.session_state["half_duration"],
+                league_format=st.session_state["league_format"],
+                playoff_format=st.session_state["playoff_format"],
+            )
             # Collapsible sections for details
             with st.expander("🏆 Tournament Details", expanded=True):
-                st.write(f"**Name**: {st.session_state['tournament_name']}")
-                st.write(f"**Date**: {st.session_state['event_date']}")
-                st.write(f"**Type**: {st.session_state['tournament_type']}")
-                st.write(f"**Players**: {st.session_state['num_players']}")
-                st.write(f"**Consoles**: {st.session_state['num_consoles']}")
-                st.write(f"**Half Duration**: {st.session_state['half_duration']} minutes")
+                st.markdown(f"### 🏆 **{st.session_state['tournament_name']}**")
+                # Tournament details
+                st.write(f"**📅 Date:** {st.session_state['event_date']}")
+                st.write(f"**🎯 Type:** {st.session_state['tournament_type']}")
+                st.write(f"**🏅 League Format:** {st.session_state['league_format']}")
+                st.write(f"**⚔️ Playoff Format:** {st.session_state['playoff_format']}")
+                st.write(f"**👥 Players:** {st.session_state['num_players']}")
+                st.write(f"**🎮 Consoles:** {st.session_state['num_consoles']}")
+                st.write(f"**⏱️ Half Duration:** {st.session_state['half_duration']} minutes")
+
+            with st.expander("⏳ Estimated Duration", expanded=False):
+                st.markdown(f"#### **⏳ ~Est: {duration_breakdown['total_hours']} hours & {duration_breakdown['total_minutes']} minutes**")
+                # League duration details
+                st.markdown("**🏅 League Games**")
+                st.write(f"- **Total Games:** {duration_breakdown['total_league_games']} across {duration_breakdown['total_league_rounds']} rounds")
+                st.write(f"- **Estimated Duration:** ~{duration_breakdown['total_league_duration']} minutes")
+                # Playoff duration details
+                st.markdown("**⚔️ Playoff Games**")
+                st.write(f"- **Total Games:** {duration_breakdown['total_playoff_games']} across {duration_breakdown['total_playoff_rounds']} rounds")
+                st.write(f"- **Estimated Duration:** ~{duration_breakdown['total_playoff_duration']} minutes")
+                # Additional time
+                st.markdown("**⏱️ Additional Time**")
+                st.write(f"- **Team Management Time:** ~{duration_breakdown['team_management_time']} minutes")
+
 
             with st.expander("👤 Players & Teams", expanded=False):
+                st.markdown(f"### 👤**Player Teams**")
                 for player, team in st.session_state["team_selection"].items():
                     st.write(f"- {player}: {team}")
 
@@ -364,6 +424,8 @@ def render():
                 st.session_state["tournaments"][tournament_id] = {
                     "tournament_name": st.session_state["tournament_name"],
                     "event_date": st.session_state["event_date"],
+                    "league_format": st.session_state["league_format"],
+                    "playoff_format": st.session_state["playoff_format"],
                     "tournament_type": st.session_state["tournament_type"],
                     "num_players": st.session_state["num_players"],
                     "num_consoles": st.session_state["num_consoles"],
@@ -372,7 +434,7 @@ def render():
                     "team_selection": st.session_state["team_selection"],
                             }
                 st.session_state["selected_tournament_id"] = tournament_id
-                st.session_state["tournament_ready"] = True  # Set the tournament ready flag
+                st.session_state["tournament_ready"] = True
                 st.success(f"Tournament setup saved with ID: {tournament_id}",icon="✅") 
 
             # Add Start Over Button

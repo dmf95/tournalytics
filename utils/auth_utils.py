@@ -86,12 +86,21 @@ def register_user(email, password, username, role="user", league_id=None):
         auth.set_custom_user_claims(user.uid, custom_claims)
 
         # Store metadata in Firestore
-        create_user_metadata(email, username, role, league_id)
+        user_metadata = {
+            "uid": user.uid,
+            "email": email,
+            "username": username,
+            "role": role,
+            "league_id": league_id,
+            "created_at": datetime.now(),
+        }
+        db.collection("users").document(user.uid).set(user_metadata)
 
         return True, "User registered successfully."
     except Exception as e:
         print(f"Error registering user: {e}")
-        return False, "An error occurred while registering the user."
+        return False, f"Error registering user: {e}"
+
 
 
 def authenticate_user(identifier, password=None):
