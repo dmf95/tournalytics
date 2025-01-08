@@ -20,10 +20,10 @@ if "role" not in st.session_state:
 # Define pages using st.Page
 pages = {
     "Home": st.Page("home.py", title="Home", icon="🎮", default=True),
-    "Account": st.Page("login.py", title="Account", icon="🧑‍💻"),
     "Tournaments": st.Page("tournaments.py", title="Tournaments", icon="🏆"),
-    "Players": st.Page("players.py", title="Players", icon="👤"),
-    "Stats": st.Page("stats.py", title="Stats", icon="📊"),
+    "Manage": st.Page("manage.py", title="Manage Leagues", icon="🏟️"),
+    "Profile": st.Page("profile.py", title="My Profile", icon="🧑‍💻"),
+    "Stats": st.Page("stats.py", title="League Records", icon="📊"),
 }
 
 # Authentication and Navigation
@@ -41,15 +41,15 @@ if st.session_state["authenticated"]:
     role_pages = {
         "super_admin": {
             "Main": [pages["Home"]],
-            "Features": [pages["Account"], pages["Tournaments"], pages["Players"], pages["Stats"]],
+            "Features": [pages["Tournaments"], pages["Manage"], pages["Profile"], pages["Stats"]],
         },
         "admin": {
             "Main": [pages["Home"]],
-            "Features": [pages["Account"], pages["Tournaments"], pages["Players"]],
+            "Features": [pages["Tournaments"], pages["Profile"], pages["Manage"], pages["Stats"]],
         },
         "user": {
             "Main": [pages["Home"]],
-            "Features": [pages["Account"], pages["Stats"]],
+            "Features": [pages["Tournaments"], pages["Profile"], pages["Stats"]],
         },
     }
 
@@ -64,7 +64,7 @@ else:
     # Not authenticated: Restrict to Account page
     pg = st.navigation(
         {
-            "Authentication": [pages["Account"]],
+            "Home": [pages["Home"]],
         }
     )
 

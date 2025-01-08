@@ -126,7 +126,7 @@ def render():
     league_complete = st.session_state.results.dropna(subset=["Home Goals", "Away Goals"]).shape[0] == st.session_state.results.shape[0]
     # Reorder: Player, Team, Points, Played, Playoff_Played, Wins, Draws, Goals, xG
     standings = standings[["Player", "Team", "Points", "Played", "Wins", "Draws", "Goals", "xG"]]
-    ranked_standings = standings.sort_values(by=["Points", "Wins", "Goals", "xG"], ascending=False).reset_index(drop=True)
+    ranked_standings = standings.sort_values(by=["Points", "Goals", "xG", "Wins"], ascending=False).reset_index(drop=True)
 
     if not league_complete:
         #st.warning("Playoffs are locked until all round-robin matches are completed.",icon="🔒")
