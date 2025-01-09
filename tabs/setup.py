@@ -1,6 +1,6 @@
 import streamlit as st
 import pandas as pd
-from utils.general_utils import generate_tournament_id
+from utils.general_utils import generate_unique_id
 from utils.data_utils import load_player_data_local
 from utils.tournament_utils import estimate_tournament_duration
 
@@ -420,7 +420,7 @@ def render():
                 use_container_width=True,
                 )
             if save_button:
-                tournament_id = generate_tournament_id()
+                tournament_id = generate_unique_id(id_length = 12, id_type='uuid')
                 st.session_state["tournaments"][tournament_id] = {
                     "tournament_name": st.session_state["tournament_name"],
                     "event_date": st.session_state["event_date"],

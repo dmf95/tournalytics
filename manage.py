@@ -2,13 +2,8 @@ import streamlit as st
 import pandas as pd
 from utils.data_utils import load_player_data_local, insert_new_player_data
 import random
-
-# Helper function to generate a unique 9-digit ID
-def generate_unique_player_id(existing_ids):
-    while True:
-        random_id = random.randint(100_000_000, 999_999_999)  # Generate a 9-digit number
-        if random_id not in existing_ids:
-            return random_id
+from firebase_admin import firestore
+from utils.auth_utils import create_league_metadata
 
 def to_snake_case(name):
     """
@@ -17,211 +12,348 @@ def to_snake_case(name):
     """
     return " ".join([word.capitalize() for word in name.split()])
 
-# Load and process player data
-if "players" not in st.session_state:
-    try:
-        # Load players and add "source" column for default players
-        loaded_players = load_player_data_local("assets/players.csv")
-        loaded_players["source"] = "default"
-        st.session_state["players"] = loaded_players
-    except Exception as e:
-        st.session_state["players"] = None
-        st.error(f"Failed to load player data: {e}", icon="❌")
 
 
-# App Branding
 st.markdown(
     """
-    <div style='text-align: center; margin-bottom: 20px;'>
-        <h2 style='margin-bottom: 0px;'>👤 Manage Players</h2>
-        <p style='font-size: 14px; color: #808080;'>Manage existing Tournament Players</p>
+    <div style="text-align: center; margin-bottom: 20px;">
+        <h2>🎮 Manage Leagues 🎮</h2>
     </div>
     """,
     unsafe_allow_html=True,
 )
-st.markdown("---")
 
-# Add New Player Section
-st.markdown(
-    """
-    <div style='text-align: center; margin-bottom: 20px;'>
-        <h3 style='margin-bottom: 0px;'>➕ Add a New Player</h3>
-    </div>
-    """,
-    unsafe_allow_html=True,
-)
-with st.form("add_player_form"):
-    st.write("Fill out the form to add new players.")
-    first_name = st.text_input("First Name", placeholder="Enter first name")
-    last_name = st.text_input("Last Name", placeholder="Enter last name")
-    submitted = st.form_submit_button("➕ Add Player", use_container_width=True)
+# Initialize session state
+if "player_names" not in st.session_state:
+    players_df = load_player_data_local("assets/players.csv")
+    st.session_state["player_names"] = players_df["first_name"] + " " + players_df["last_name"]
 
-    if submitted:
-        if first_name and last_name:
-            # Process names into Snake Case
-            first_name = to_snake_case(first_name)
-            last_name = to_snake_case(last_name)
+if "tournaments" not in st.session_state:
+    st.session_state["tournaments"] = {}
 
-            # Check for duplicate full name
-            full_name = f"{first_name} {last_name}"
-            existing_players = st.session_state["players"]
+if "selected_tab" not in st.session_state:
+    st.session_state["selected_tab"] = "Create League"  # Default tab
 
-            # Check if full_name already exists
-            if isinstance(existing_players, list):
-                existing_full_names = existing_players
-            elif isinstance(existing_players, pd.DataFrame):
-                existing_full_names = (
-                    existing_players["first_name"] + " " + existing_players["last_name"]
-                ).tolist()
-            else:
-                existing_full_names = []
+if "selected_tournament_id" not in st.session_state:
+    # Automatically set the first tournament ID if available
+    st.session_state["selected_tournament_id"] = next(iter(st.session_state["tournaments"]), None)
 
-            if full_name in existing_full_names:
-                st.error(f"Player '{full_name}' already exists in current players.", icon="❌")
-            else:
-                # Add the new player to the session state
-                if isinstance(st.session_state["players"], list):
-                    st.session_state["players"].append(full_name)
-                elif isinstance(st.session_state["players"], pd.DataFrame):
-                    # Generate a unique ID for DataFrame case
-                    existing_ids = st.session_state["players"]["id"].dropna().tolist()
-                    player_id = generate_unique_player_id(existing_ids)
+if "tournament_ready" not in st.session_state:
+    st.session_state["tournament_ready"] = False
 
-                    new_player = pd.DataFrame(
-                        [{
-                            "id": player_id,
-                            "first_name": first_name,
-                            "last_name": last_name,
-                            "source": "custom",
-                        }]
-                    )
-                    st.session_state["players"] = pd.concat(
-                        [st.session_state["players"], new_player], ignore_index=True
-                    )
-                else:
-                    # Initialize as a list if previously uninitialized
-                    st.session_state["players"] = [full_name]
+if "expander_open" not in st.session_state:
+    st.session_state["expander_open"] = True  # Start with the expander open
 
-                st.success(f"Player '{full_name}' added successfully!", icon="✅")
-        else:
-            st.error("First Name and Last Name are required fields.", icon="❌")
+# Firestore setup (assuming Firebase Admin SDK is initialized elsewhere)
+db = firestore.client()
 
-# Add divider
-st.markdown("---")
+# Main Navigation Buttons
+col1, col2, col3 = st.columns(3)
 
-# Display Current Players in an Expander
-with st.expander("📋 View Current Players", expanded=False):
-    # Heading for the section
+# Determine user role
+user_role = st.session_state.role
+
+# Show buttons but disable unavailable options
+with col1:
+    setup_button = st.button(
+        "🖌️ Create League",
+        use_container_width=True,
+        key="create_leagues_button",
+        help="Set up your tournament step-by-step.",
+        disabled=user_role != "super_admin",
+    )
+    if setup_button:
+        st.session_state["selected_tab"] = "Create League"
+
+with col2:
+    management_button = st.button(
+        "🎮 Manage Leagues",
+        use_container_width=True,
+        key="manage_leagues_button",
+        help="Manage your tournament after setup is complete.",
+        disabled=user_role not in ["super_admin", "admin"],
+    )
+    if management_button:
+        st.session_state["selected_tab"] = "Manage Leagues"
+
+with col3:
+    search_button = st.button(
+        "🔍 Search Leagues",
+        use_container_width=True,
+        key="search_leagues_button",
+        help="Search for leagues and their details.",
+    )
+    if search_button:
+        st.session_state["selected_tab"] = "Search Leagues"
+
+# Handle tab selection
+selected_tab = st.session_state["selected_tab"]
+
+if selected_tab == "Create League" and user_role == "super_admin":
     st.markdown(
         """
-        <div style="text-align: center; margin-bottom: 0px;">
-            <h3 style="margin: 0; font-size: 1.2em;">🎮 Current Player Roster</h3>
-            <p style="color: #aaa; font-size: 0.9em; margin-top: 0px;">
-                Review and manage the players in your league.
-            </p>
+        <div style='text-align: center; margin-bottom: 20px;'>
+            <h2 style='margin-bottom: 0px;'>🖌️ Create a League</h2>
+            <p style='font-size: 14px; color: #808080;'>Set up your new league, assign admins, and establish a super admin.</p>
         </div>
         """,
         unsafe_allow_html=True,
     )
 
-    if isinstance(st.session_state["players"], pd.DataFrame) and not st.session_state["players"].empty:
-        # Players stored as a DataFrame
-        players_with_source = st.session_state["players"].copy()
+    # Ensure user_id exists in session state
+    if "user_id" not in st.session_state or not st.session_state["user_id"]:
+        try:
+            # Example: Retrieve user_id from Firebase based on email (assumes email is stored in session_state)
+            user_email = st.session_state.get("email")
+            if user_email:
+                user_doc = db.collection("users").where("email", "==", user_email).get()
+                if user_doc:
+                    st.session_state["user_id"] = user_doc[0].id
+                else:
+                    st.error("Failed to retrieve user ID. Please reauthenticate.", icon="❌")
+                    st.stop()
+            else:
+                st.error("Email not found in session state. Please log in again.", icon="❌")
+                st.stop()
+        except Exception as e:
+            st.error(f"Error retrieving user ID: {e}", icon="❌")
+            st.stop()
 
-        # Ensure "source" column is available and populated
-        if "source" not in players_with_source.columns:
-            players_with_source["source"] = "default"
+    creator_id = st.session_state["user_id"]
+
+    # Fetch available admins (both admins and super admins)
+    users_ref = db.collection("users").where("role", "in", ["admin", "super_admin"]).get()
+    users = {user.id: user.to_dict() for user in users_ref}
+
+    # Use session state to track submission status
+    if "league_submission_result" not in st.session_state:
+        st.session_state["league_submission_result"] = None
+
+    with st.form("add_league_form"):
+        league_name = st.text_input("League Name", placeholder="Enter league name")
+        league_type = st.selectbox("League Type", ["Private", "Public"], index=0)
+
+        if users:
+            # Select multiple admins
+            selected_admins = st.multiselect(
+                "Assign Admins",
+                options=list(users.keys()),
+                format_func=lambda x: f"{users[x]['username']} ({users[x]['role']})",
+            )
         else:
-            players_with_source.loc[players_with_source["source"].isnull(), "source"] = "custom"
+            st.warning("No users available to assign as admins. Please add admins or super admins.")
+            selected_admins = []
 
-        # Rename columns for better display
-        display_players = players_with_source.rename(
-            columns={
-                "id": "ID",
-                "first_name": "First Name",
-                "last_name": "Last Name",
-                "source": "Source",
-            }
+        submitted = st.form_submit_button("➕ Create League", use_container_width=True)
+
+        if submitted:
+            if league_name and selected_admins:
+                if creator_id not in selected_admins:
+                    selected_admins.append(creator_id)
+
+                # Validate roles: exactly one super admin, which is the creator
+                super_admins = [
+                    admin for admin in selected_admins if admin in users and users[admin]["role"] == "super_admin"
+                ]
+                if len(super_admins) != 1 or super_admins[0] != creator_id:
+                    st.error("Each league must have exactly one super admin, which is the creator.", icon="❌")
+                else:
+                    # Create the league metadata
+                    created_league = create_league_metadata(
+                        league_name,
+                        league_type,
+                        created_by=creator_id,
+                    )
+                    if created_league["success"]:
+                        # Add admins and super admin to the league
+                        league_id = created_league["league_id"]
+                        db.collection("leagues").document(league_id).update({
+                            "admins": selected_admins,
+                            "super_admin": creator_id,
+                        })
+                        st.session_state["league_submission_result"] = created_league
+                    else:
+                        st.error(created_league["message"], icon="❌")
+            else:
+                st.error("League Name and Admin assignment are required.", icon="❌")
+
+    if st.session_state["league_submission_result"]:
+        if st.session_state["league_submission_result"]["success"]:
+            st.success(st.session_state["league_submission_result"]["message"], icon="✅")
+        else:
+            st.error(st.session_state["league_submission_result"]["message"], icon="❌")
+
+    st.markdown("---")
+    st.markdown(
+        """
+        <div style='text-align: center; margin-bottom: 20px;'>
+            <h3 style='margin-bottom: 0px;'>📋 Manage League Admins</h3>
+            <p style='font-size: 14px; color: #808080;'>Easily view leagues and manage their admin associations.</p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    # Fetch leagues and users
+    leagues_ref = db.collection("leagues").get()
+    leagues = {league.id: league.to_dict() for league in leagues_ref}
+    users_ref = db.collection("users").where("role", "in", ["admin", "super_admin"]).get()
+    users = {user.id: user.to_dict() for user in users_ref}
+
+    if leagues:
+        # Display leagues in collapsible cards
+        st.markdown("#### Leagues Overview")
+        with st.expander("📋 View Existing Leagues", expanded=False):
+            leagues_ref = db.collection("leagues").get()
+            leagues = {league.id: league.to_dict() for league in leagues_ref}
+
+            if leagues:
+                leagues_data = [
+                    {
+                        "League Name": league_data.get("league_name", "Unknown"),
+                        "League Type": league_data.get("league_type", "Unknown").capitalize(),
+                        "Super Admin": users.get(league_data.get("super_admin"), {}).get("username", "Unassigned"),
+                        "Admins": ", ".join(
+                            [users.get(admin, {}).get("username", "Unknown") for admin in league_data.get("admins", [])]
+                        ),
+                        "Created At": league_data.get("created_at", "N/A"),
+                    }
+                    for league_data in leagues.values()
+                ]
+                leagues_df = pd.DataFrame(leagues_data)
+
+                st.dataframe(
+                    leagues_df,
+                    use_container_width=True,
+                )
+            else:
+                st.warning("No leagues found.")
+
+
+
+        st.markdown("---")
+        st.markdown("#### Manage League Admins")
+
+        # Select league to manage
+        selected_league_id = st.selectbox(
+            "Select League to Manage",
+            options=list(leagues.keys()),
+            format_func=lambda x: leagues[x]["league_name"],
         )
 
-        # Highlight "Custom" players for better UX
-        display_players["Source"] = display_players["Source"].apply(
-            lambda x: "🛠️ Custom" if x == "custom" else "📦 Default"
-        )
+        if selected_league_id:
+            selected_league = leagues[selected_league_id]
+            current_admins = selected_league.get("admins", [])
+            current_super_admin = selected_league.get("super_admin")
 
-        # Display players in an interactive table
-        st.dataframe(
-            display_players,
-            use_container_width=True,
-            height=400,
-            hide_index=True,
-        )
+            # Display current league details in a card-style layout optimized for dark theme
+            st.markdown(
+                f"""
+                <div style="
+                    border: 1px solid #444; 
+                    border-radius: 8px; 
+                    padding: 16px; 
+                    margin-bottom: 16px; 
+                    background-color: #222; 
+                    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.5);
+                ">
+                    <h4 style="margin: 0; color: #fff;">🏆 League Details</h4>
+                    <hr style="border: none; border-top: 1px solid #444; margin: 8px 0;">
+                    <p style="color: #ddd;"><strong>League Name:</strong> {selected_league.get('league_name', 'Unknown')}</p>
+                    <p style="color: #ddd;"><strong>League Type:</strong> {selected_league.get('league_type', 'Unknown').capitalize()}</p>
+                    <p style="color: #ddd;"><strong>Super Admin:</strong> {users.get(current_super_admin, {}).get('username', 'Unassigned')}</p>
+                    <p style="color: #ddd;"><strong>Current Admins:</strong> {", ".join([users.get(admin, {}).get("username", "Unknown") for admin in current_admins]) if current_admins else "No admins assigned."}</p>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
 
-        # User guidance
-        st.markdown(
-            """
-            <div style="text-align: center; margin-top: 10px; color: #aaa; font-size: 0.85em;">
-                Tip: Use column headers to sort or search for specific players.
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
 
-    elif isinstance(st.session_state["players"], list) and st.session_state["players"]:
-        # Players stored as a list
-        st.markdown(
-            """
-            <style>
-            ul.player-list {
-                list-style-type: none;
-                padding: 0;
-                margin: 0;
-            }
-            ul.player-list li {
-                background: #444;
-                margin: 5px 0;
-                padding: 10px;
-                border-radius: 8px;
-                color: white;
-                font-size: 1em;
-            }
-            </style>
-            """,
-            unsafe_allow_html=True,
-        )
 
-        st.markdown("<ul class='player-list'>", unsafe_allow_html=True)
-        for player in st.session_state["players"]:
-            st.markdown(f"<li>🎮 {player}</li>", unsafe_allow_html=True)
-        st.markdown("</ul>", unsafe_allow_html=True)
+            # Update admin associations
+            st.markdown("#### Update Admin Associations")
+            selected_new_admins = st.multiselect(
+                "Add or Remove Admins",
+                options=list(users.keys()),
+                format_func=lambda x: f"{users[x]['username']} ({users[x]['role']})",
+                default=current_admins,
+            )
 
-        # User guidance
-        st.markdown(
-            """
-            <div style="text-align: center; margin-top: 10px; color: #aaa; font-size: 0.85em;">
-                Tip: Tap on a player name to view their details in the future.
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-
+            if st.button("Update Admins"):
+                try:
+                    # Ensure the super admin remains unchanged
+                    if current_super_admin not in selected_new_admins:
+                        st.error("The super admin cannot be removed from the admin list.", icon="❌")
+                    else:
+                        # Update league admins in Firestore
+                        db.collection("leagues").document(selected_league_id).update({
+                            "admins": selected_new_admins,
+                        })
+                        st.success("Admins updated successfully!", icon="✅")
+                        # Refresh the page or data after update
+                except Exception as e:
+                    st.error(f"Error updating admins: {e}", icon="❌")
     else:
-        # No players found
-        st.markdown(
-            """
-            <div style="text-align: center; margin-top: 20px;">
-                <p style="color: #aaa; font-size: 1em;">
-                    🚨 No players found. Start by adding new players using the form above.
-                </p>
-            </div>
-            """,
-            unsafe_allow_html=True,
+        st.warning("No leagues found. Please create a league first.")
+
+
+
+
+
+elif selected_tab == "Manage Leagues" and user_role in ["super_admin", "admin"]:
+    st.markdown(
+        """
+        <div style='text-align: center; margin-bottom: 20px;'>
+            <h2 style='margin-bottom: 0px;'>🎮 Manage Leagues</h2>
+            <p style='font-size: 14px; color: #808080;'>Update league details and associations.</p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    leagues_ref = db.collection("leagues").get()
+    players_ref = db.collection("players").get()
+
+    leagues = {league.id: league.to_dict() for league in leagues_ref}
+    players = {player.id: player.to_dict() for player in players_ref}
+
+    if leagues and players:
+        selected_league = st.selectbox("Select League", options=list(leagues.keys()), format_func=lambda x: leagues[x]["league_name"])
+        selected_players = st.multiselect(
+            "Select Players to Associate", 
+            options=list(players.keys()), 
+            format_func=lambda x: f"{players[x]['first_name']} {players[x]['last_name']}"
         )
 
+        if st.button("Update Associations"):
+            for player_id in selected_players:
+                db.collection("players").document(player_id).update({"league_id": selected_league})
+            st.success("Player-League associations updated successfully!", icon="✅")
+    else:
+        st.warning("No leagues or players found.")
 
+elif selected_tab == "Search Leagues" and user_role in ["super_admin", "admin"]:
+    st.markdown(
+        """
+        <div style='text-align: center; margin-bottom: 20px;'>
+            <h2 style='margin-bottom: 0px;'>🔍 Search Leagues</h2>
+            <p style='font-size: 14px; color: #808080;'>Find leagues and view their details.</p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
-# Display Footer
-st.markdown("---")
-st.markdown(
-    "💡 Use this page to manage your player rosters efficiently. Check the current roster above and add new players below."
-)
+    leagues_ref = db.collection("leagues").get()
+    leagues = {league.id: league.to_dict() for league in leagues_ref}
+
+    if leagues:
+        search_query = st.text_input("Search for a League", placeholder="Enter league name")
+        if search_query:
+            filtered_leagues = {k: v for k, v in leagues.items() if search_query.lower() in v["league_name"].lower()}
+            for league_id, league_data in filtered_leagues.items():
+                st.markdown(f"**{league_data['league_name']}** - Type: {league_data['league_type']}")
+        else:
+            for league_id, league_data in leagues.items():
+                st.markdown(f"**{league_data['league_name']}** - Type: {league_data['league_type']}")
+    else:
+        st.warning("No leagues found.")

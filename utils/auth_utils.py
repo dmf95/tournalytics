@@ -5,6 +5,8 @@ from firebase_admin import credentials, firestore, auth
 from dotenv import load_dotenv
 import re
 import requests
+import random
+from utils.general_utils import generate_unique_id 
 
 # Load environment variables
 load_dotenv()
@@ -20,27 +22,109 @@ if not firebase_admin._apps:
 # Firestore client
 db = firestore.client()
 
-
-def create_user_metadata(uid, email, username, role="user", league_id=None):
+def create_user_metadata(email, password, username, role="user", league_id=None):
     """
-    Store user metadata in Firestore under `users/{uid}` after Firebase Authentication signup.
+    Create a new user in Firebase Authentication and store additional metadata in Firestore.
+    Ensures no duplicate UIDs are stored in Firestore.
     """
     try:
-        # Prepare user metadata
-        user_metadata = {
+        # Check if the email is already registered
+        existing_user = None
+        try:
+            existing_user = auth.get_user_by_email(email)
+        except Exception:
+            # No user found, this is fine
+            pass
+
+        if existing_user:
+            print(f"User with email {email} already exists. UID: {existing_user.uid}")
+            return False
+
+        # Create user in Firebase Authentication
+        user_record = auth.create_user(email=email, password=password, display_name=username)
+
+        # Check for duplicate UID in Firestore
+        if db.collection("users").document(user_record.uid).get().exists:
+            print(f"Duplicate UID detected for {user_record.uid}. Rolling back user creation.")
+            auth.delete_user(user_record.uid)  # Rollback user creation in Firebase Auth
+            return False
+
+        # Store additional metadata in Firestore
+        user_doc = {
+            "uid": user_record.uid,  # Link Firestore metadata to Firebase Auth UID
             "username": username,
             "email": email,
             "role": role,
             "league_id": league_id,
-            "created_at": datetime.now(),
+            "created_at": firestore.SERVER_TIMESTAMP,
         }
-        # Store metadata in Firestore using `uid` as the document ID
-        db.collection("users").document(uid).set(user_metadata)
+        db.collection("users").document(user_record.uid).set(user_doc)
+
+        print(f"User {username} created successfully.")
         return True
     except Exception as e:
         print(f"Error creating user metadata: {e}")
         return False
 
+
+
+def create_league_metadata(league_name, league_type="private", created_by=None):
+    """
+    Create a new league and store metadata in Firestore.
+
+    Parameters:
+        league_name (str): The name of the league.
+        league_type (str): The type of the league ('Private' or 'Public'). Defaults to 'Private'.
+        created_by (str, optional): The UID of the user who created the league.
+
+    Returns:
+        dict: A dictionary containing the result status and message.
+              Example: {"success": True, "message": "League created successfully.", "league_id": "123456789"}
+    """
+    try:
+        # Validate inputs
+        if not league_name or not isinstance(league_name, str):
+            raise ValueError("Invalid league_name. It must be a non-empty string.")
+        
+        if league_type.lower() not in ["private", "public"]:
+            raise ValueError("Invalid league_type. Allowed values are 'private' or 'public'.")
+
+        # Generate a unique league ID
+        existing_league_ids = {doc.id for doc in db.collection("leagues").stream()}  # Use set for efficiency
+        league_id = generate_unique_id(existing_league_ids, id_length=9, id_type="numeric")
+
+        # League metadata
+        league_doc = {
+            "league_id": league_id,
+            "league_name": league_name.strip(),
+            "league_type": league_type.lower(),
+            "created_by": created_by,  # UID of the user who created the league
+            "created_at": firestore.SERVER_TIMESTAMP,
+        }
+
+        # Store league metadata in Firestore
+        db.collection("leagues").document(league_id).set(league_doc)
+
+        print(f"League '{league_name}' created successfully with ID: {league_id}")
+        return {
+            "success": True,
+            "message": f"League '{league_name}' created successfully.",
+            "league_id": league_id,
+        }
+    except ValueError as ve:
+        # Handle validation errors
+        print(f"Validation error: {ve}")
+        return {
+            "success": False,
+            "message": str(ve),
+        }
+    except Exception as e:
+        # Handle general exceptions
+        print(f"Error creating league metadata: {e}")
+        return {
+            "success": False,
+            "message": f"Error creating league metadata: {e}",
+        }
 
 
 def is_username_or_email_taken(username, email):
