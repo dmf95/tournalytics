@@ -146,54 +146,78 @@ def render():
         ["🛠️ 01 Create", "⚙️ 02 Setup", "👤 03 Players", "🎉 04 Finish"]
     )
 
-    # Check if user has league_ids
-    if st.session_state['user_data'].get("league_ids", []):
-        # Fetch league names from Firestore
-        league_ids = st.session_state['user_data']['league_ids']
-        league_catalog = firestore_get_leagues(league_ids)
-        league_mapping = create_league_mapping(league_catalog)
-        
-        # Store the league mapping in session state
-        st.session_state['league_mapping'] = league_mapping
-        st.session_state['leagues_catalog'] = league_catalog
+    # Create Tab
+    with tab_create:
+        # Header Section
+        st.markdown(
+            """
+            <div style='text-align: center; margin-bottom: 20px;'>
+                <h3 style='margin-bottom: 5px;'>🎮 Create Tournament</h3>
+                <p style='font-size: 14px; color: #808080;'>Enter the tournament details to get started.</p>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
 
-        # Store only league names in user_data if needed
-        st.session_state['user_data']['league_names'] = list(league_mapping.values())
 
-        # Create Tab
-        with tab_create:
+        if not st.session_state.get("league_mapping"):
             st.markdown(
                 """
-                <div style='text-align: center; margin-bottom: 20px;'>
-                    <h3 style='margin-bottom: 5px;'>🎮 Create Tournament</h3>
-                    <p style='font-size: 14px; color: #808080;'>Enter the tournament details to get started.</p>
+                <div style='text-align: center; margin-top: 50px;'>
+                    <h3 style='margin-bottom: 10px; color: #808080;'>🔒 Locked</h3>
+                    <p style='font-size: 14px; color: #ccc;'>You need to join a league to create a tournament.</p>
                 </div>
                 """,
                 unsafe_allow_html=True,
             )
+        else:
 
-            # League Selection Dropdown
-            st.session_state["league_name"]  = st.selectbox(
-                "Select League",
-                options=["Select a league"] + st.session_state['user_data']['league_names'],
-                key="select_league",
-                help="Choose the league to associate with this tournament.",
-            )
+            # Fetch league names from Firestore
+            league_ids = st.session_state['user_data']['league_ids']
+            league_catalog = st.session_state['league_catalog']
+            league_mapping = st.session_state['league_mapping']
+            league_names = list(league_mapping.values()) 
 
-            # Tournament Name Input
-            st.session_state["tournament_name"] = st.text_input(
-                "Tournament Name",
-                value=st.session_state['user_data'].get("tournament_name", ""),
-                key="create_tournament_name",
-                placeholder="Enter a unique tournament name",
-            )
 
-            # Event Date Input
-            event_date = st.date_input(
-                "Event Date",
-                key="create_event_date",
-                help="Select the date of the tournament.",
-            )
+            # Layout for Input Fields
+            create_col1, create_col2 = st.columns(2, gap="medium")
+            create_col3, create_col4 = st.columns(2, gap="medium")
+
+            with create_col1:
+                # League Selection Dropdown
+                league_name = st.selectbox(
+                    "Select League",
+                    options=["Select a league"] + league_names,
+                    key="select_league",
+                    help="Choose the league to associate with this tournament.",
+                )
+
+            with create_col2:
+                # Tournament Name Input
+                tournament_name = st.text_input(
+                    "Tournament Name",
+                    value=st.session_state["user_data"].get("tournament_name", ""),
+                    key="create_tournament_name",
+                    placeholder="Enter a unique tournament name",
+                    help="Provide a unique name for your tournament.",
+                )
+
+            with create_col3:
+                # Video Game Selection
+                video_game = st.selectbox(
+                    "Select Game",
+                    ["FC25", "FC24"],
+                    key="select_video_game",
+                    help="Choose the Video Game you will be playing. Currently, only 'FC25' and 'FC24' are supported.",
+                )
+
+            with create_col4:
+                # Event Date Input
+                event_date = st.date_input(
+                    "Event Date",
+                    key="create_event_date",
+                    help="Select the date of the tournament.",
+                )
 
             # Proceed Button with Icon
             proceed_button = st.button(
@@ -204,39 +228,45 @@ def render():
 
             # Logic for Proceed Button
             if proceed_button:
-                if st.session_state.get("league_name") == "Select a league":
+                # Validate Inputs
+                if league_name == "Select a league":
                     st.error("You must select a league to associate this tournament.", icon="❌")
-                elif not st.session_state["tournament_name"]:
+                elif not tournament_name.strip():
                     st.error("Tournament Name cannot be empty.", icon="❌")
                 elif not event_date:
                     st.error("Event Date must be selected.", icon="❌")
                 else:
-                    st.session_state["league_id"] = next(
-                        (key for key, value in st.session_state['league_mapping'].items() if value == st.session_state["league_name"]), 
-                        None
+                    # Update Session State
+                    st.session_state.update(
+                        {
+                            "league_name": league_name,
+                            "tournament_name": tournament_name.strip(),
+                            "video_game": video_game,
+                            "event_date": event_date,
+                            "league_id": next(
+                                (
+                                    key
+                                    for key, value in st.session_state["league_mapping"].items()
+                                    if value == league_name
+                                ),
+                                None,
+                            ),
+                            "create_complete": True,
+                        }
                     )
-                    st.session_state["create_complete"] = True
-                    st.session_state["event_date"] = event_date
-                    st.success(f"Tournament created successfully in {st.session_state.get('league_name')}! Proceed to Setup.", icon="✅")
-
+                    st.success(
+                        f"Tournament created successfully in {league_name}! Proceed to Setup.",
+                        icon="✅",
+                    )
 
             # Add Start Over Button
             render_start_over_button(tab="setup_create")
-    else:
-        # If no league_id, lock the page
-        st.markdown(
-            """
-            <div style='text-align: center; margin-top: 50px;'>
-                <h3 style='margin-bottom: 10px; color: #808080;'>🔒 Locked</h3>
-                <p style='font-size: 14px; color: #ccc;'>You need to join a league to create a tournament.</p>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
+
 
 
     # General Setup Tab
     with tab_setup:
+        # Header Section
         st.markdown(
             """
             <div style='text-align: center; margin-bottom: 20px;'>
@@ -247,52 +277,83 @@ def render():
             unsafe_allow_html=True,
         )
 
-        if not st.session_state["create_complete"]:
-            st.warning(
-                "Complete the Create step first to unlock this tab.", icon="🔒"
+        # Check if "Create" step is complete
+        if not st.session_state.get("create_complete", False):
+            st.markdown(
+                """
+                <div style='text-align: center; margin-top: 50px;'>
+                    <h3 style='margin-bottom: 10px; color: #808080;'>🔒 Locked</h3>
+                    <p style='font-size: 14px; color: #ccc;'>Complete the Create step first to unlock this tab.</p>
+                </div>
+                """,
+                unsafe_allow_html=True,
             )
+
         else:
+
+            # Layout for Setup Options
+            setup_col1, setup_col2 = st.columns(2, gap="medium")
             
-            # Tournament Type
-            league_format = st.selectbox(
-                "Select League Format",
-                ["Play-Everyone"],
-                help="Choose how league games are scheduled. Currently, the default is 'Play-Everyone,' where each team plays all others once.",
+            # Tiebreaker Metrics Selection
+            tiebreakers = st.multiselect(
+                "Select Tiebreaker Metrics (in order of priority):",
+                options=["Goals For", "xG For", "Wins", "Draws"],
+                default=["Goals For", "xG For", "Wins"],
+                help="Choose the metrics to break ties on Points, ordered by priority. Points are as follows: W = 3pts, D = 1pt, L = 0pts.",
+                key="setup_tiebreakers",
             )
 
-            # Playoff Format
-            playoff_format = st.selectbox(
-                "Select Playoff Format",
-                ["Double-Elimination", "Single-Elimination"],
-                help="Decide how playoff games are structured. The top 6 league teams advance to playoffs: top 2 receive byes, and the next 4 compete in wildcard games.",
-            )
+            # League Format Selection
+            with setup_col1:
+                league_format = st.selectbox(
+                    "Select League Format",
+                    ["Play-Everyone"],
+                    help="Defines how league games are scheduled. 'Play-Everyone' means each team plays all others once.",
+                    key="setup_league_format"
+                )
 
-            col1, col2 = st.columns(2, gap="medium")
+            # Playoff Format Selection
+            with setup_col2:
+                playoff_format = st.selectbox(
+                    "Select Playoff Format",
+                    ["Double-Elimination", "Single-Elimination"],
+                    help="Determines playoff structure. Top 6 league teams advance, with the top 2 receiving byes.",
+                    key="setup_playoff_format"
+                )
 
-            with col1:
-                st.session_state["num_players"] = st.slider(
+            # Layout for Setup Options
+            setup_col3, setup_col4 = st.columns(2, gap="medium")
+
+            # Number of Players
+            with setup_col3:
+                num_players = st.slider(
                     "Number of Players",
                     min_value=6,
                     max_value=12,
                     value=6,
                     key="setup_num_players",
+                    help="Choose the total number of players participating in the tournament.",
                 )
 
-            with col2:
-                st.session_state["num_consoles"] = st.slider(
+            # Number of Consoles
+            with setup_col4:
+                num_consoles = st.slider(
                     "Number of Consoles",
                     min_value=1,
                     max_value=4,
                     value=2,
                     key="setup_num_consoles",
+                    help="Specify the number of consoles available for the tournament.",
                 )
 
-            st.session_state["half_duration"] = st.slider(
+            # Half Duration
+            half_duration = st.slider(
                 "Select Half Duration",
                 min_value=4,
                 max_value=6,
                 value=5,
                 key="setup_half_duration",
+                help="Set the duration (in minutes) for each half of a game.",
             )
 
             # Proceed Button
@@ -302,18 +363,26 @@ def render():
                 use_container_width=True,
             )
 
+            # Handle Proceed Action
             if proceed_button:
                 st.session_state["setup_complete"] = True
                 st.session_state["league_format"] = league_format
                 st.session_state["playoff_format"] = playoff_format
-                st.session_state["tournament_type"] =  f'League ({st.session_state["num_players"]}-Team-{league_format}) Playoffs (6-Team-{playoff_format})'
+                st.session_state["tiebreakers"] = tiebreakers
+                st.session_state["num_players"] = num_players
+                st.session_state["num_consoles"] = num_consoles
+                st.session_state["half_duration"] = half_duration
+                st.session_state["tournament_type"] = (
+                    f'League ({num_players}-Team-{league_format}) '
+                    f'Playoffs (6-Team-{playoff_format})'
+                )
                 st.success(
                     "General Setup completed! Proceed to the next step.", icon="✅"
                 )
 
-
             # Add Start Over Button
-            render_start_over_button(tab='setup_general')
+            render_start_over_button(tab="setup_general")
+
 
 
     # Player Selection
@@ -429,9 +498,11 @@ def render():
                 st.markdown(f"### 🏆 **{st.session_state['tournament_name']}**")
                 # Tournament details
                 st.write(f"**🏟️ League:** {st.session_state['league_name']}")
+                st.write(f"**⚽ Game:** {st.session_state['video_game']}")
                 st.write(f"**📅 Date:** {st.session_state['event_date']}")
                 st.write(f"**🎯 Type:** {st.session_state['tournament_type']}")
                 st.write(f"**🏅 League Format:** {st.session_state['league_format']}")
+                st.write(f"**↕️ League Tiebreaker Order:** {st.session_state['tiebreakers']}")
                 st.write(f"**⚔️ Playoff Format:** {st.session_state['playoff_format']}")
                 st.write(f"**👥 Players:** {st.session_state['num_players']}")
                 st.write(f"**🎮 Consoles:** {st.session_state['num_consoles']}")
@@ -468,10 +539,12 @@ def render():
                 tournament_id = generate_unique_id(id_length = 12, id_type='uuid')
                 st.session_state["tournaments"][tournament_id] = {
                     "tournament_name": st.session_state["tournament_name"],
+                    "video_game": st.session_state["video_game"],
                     "league_id": st.session_state["league_id"],
                     "league_name": st.session_state["league_name"],
                     "event_date": st.session_state["event_date"],
                     "league_format": st.session_state["league_format"],
+                    "tiebreakers": st.session_state["tiebreakers"],
                     "playoff_format": st.session_state["playoff_format"],
                     "tournament_type": st.session_state["tournament_type"],
                     "num_players": st.session_state["num_players"],

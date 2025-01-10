@@ -13,7 +13,9 @@ from utils.tournament_utils import (
     update_standings,
     generate_playoffs_bracket,
     calculate_outcomes,
-    determine_winner
+    determine_winner,
+    get_session_state,
+    sort_standings
 )
 
 #-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-
@@ -39,12 +41,19 @@ def render():
 
     # Ensure results DataFrame exists and is valid
     if "results" not in st.session_state or st.session_state.results.empty:
-        st.warning("No results available. Please complete the round-robin stage first.", icon="🔒")
-        st.stop()
+        st.warning("No results available. Please complete the League stage first.", icon="🔒")
 
     # Handle playoff_results safely
     if "playoff_results" not in st.session_state or st.session_state.playoff_results.empty:
-        st.warning("Playoffs have not been generated yet.", icon="🔒")
+        st.markdown(
+            """
+            <div style='text-align: center; margin-top: 50px;'>
+                <h3 style='margin-bottom: 10px; color: #808080;'>🔒 Locked</h3>
+                <p style='font-size: 14px; color: #ccc;'>Complete all League Games to unlock Playoffs Bracket.</p>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
         playoff_results = pd.DataFrame()  # Assign an empty DataFrame as a fallback
     else:
         playoff_results = st.session_state.playoff_results.copy()
@@ -114,8 +123,8 @@ def render():
     # Round xG values in standings
     standings["xG"] = standings["xG"].round(2)
 
-    # Sort standings by Points, Wins, Draws, Goals, and xG
-    standings = standings.sort_values(by=["Points", "Wins", "Goals", "xG"], ascending=False).reset_index(drop=True)
+    # Sort standings and apply rankings
+    standings = sort_standings(standings, get_session_state("tiebreakers", []))
 
     # Reorder: Player, Team, Points, Played, Playoff_Played, Wins, Draws, Goals, xG
     standings = standings[["Player", "Team", "Points", "Played", "Wins", "Draws", "Goals", "xG"]]
@@ -130,7 +139,8 @@ def render():
 
     if not league_complete:
         #st.warning("Playoffs are locked until all round-robin matches are completed.",icon="🔒")
-        print("Playoffs are locked until all round-robin matches are completed.")
+        print("Playoffs are locked until all League matches are completed.")
+
     else:
         # Generate or fetch playoff results
         if "playoff_results" not in st.session_state or st.session_state["playoff_results"].empty:

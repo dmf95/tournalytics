@@ -18,7 +18,16 @@ import json
 def render():
     # Validate session state
     if "playoff_results" not in st.session_state or st.session_state.playoff_results.empty:
-        st.warning("Playoffs have not been generated yet.", icon="🔒")
+        st.markdown(
+            """
+            <div style='text-align: center; margin-top: 50px;'>
+                <h3 style='margin-bottom: 10px; color: #808080;'>🔒 Locked</h3>
+                <p style='font-size: 14px; color: #ccc;'>Complete all Playoff Games to unlock the Finals Matchup.</p>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
         st.stop()
 
     playoff_results = st.session_state.playoff_results.copy()
@@ -42,7 +51,16 @@ def render():
 def validate_semi_final_completion(playoff_results):
     semi_final_matches = playoff_results[playoff_results["Match"].str.startswith("SF")]
     if semi_final_matches["Home Goals"].isna().any() or semi_final_matches["Away Goals"].isna().any():
-        st.warning("Finals are locked until all semi-final matches are completed.", icon="🔒")
+        st.markdown(
+            """
+            <div style='text-align: center; margin-top: 50px;'>
+                <h3 style='margin-bottom: 10px; color: #808080;'>🔒 Locked</h3>
+                <p style='font-size: 14px; color: #ccc;'>Complete all Playoff Games to unlock the Finals Matchup.</p>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
         st.stop()
 
 # Helper: Update final matches

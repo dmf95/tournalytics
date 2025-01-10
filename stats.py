@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 from firebase_admin import firestore
 from utils.analytics_utils import calculate_basic_analysis, calculate_playoff_ranks
-
+from utils.data_utils import create_league_mapping, firestore_get_leagues
 
 # Mobile-First Design: Optimized Page Header
 st.markdown(
@@ -15,10 +15,13 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# Fetch Leagues and Enable League Selection
-league_ids = st.session_state.user_data.get("league_ids", [])
-league_mapping = st.session_state.league_mapping
-
+# Check if user has league_ids
+if st.session_state['user_data'].get("league_ids", []):
+    # Fetch league names from Firestore
+    league_ids = st.session_state['user_data']['league_ids']
+    league_catalog = st.session_state['league_catalog']
+    league_mapping = st.session_state['league_mapping']
+    
 if not league_ids or not league_mapping:
     st.error("No leagues are associated with your account.", icon="❌")
 else:
@@ -79,6 +82,7 @@ else:
                 f"""
                 <div style='text-align: center;'>
                     <h3>🏆 {username}'s Performance</h3>
+                    <p style="color: #808080;">Versus League Average</p>
                 </div>
                 """,
                 unsafe_allow_html=True,
@@ -142,7 +146,7 @@ else:
             if not user_stats.empty:
                 cols1 = st.columns(3)
                 cols2 = st.columns(3)
-                
+
                 user_games = user_stats.iloc[0]["Games"]
                 user_goals = user_stats.iloc[0]["GF"]
                 user_goals_against = user_stats.iloc[0]["GA"]
@@ -150,37 +154,73 @@ else:
                 user_xg_against = user_stats.iloc[0]["xGA"]
                 user_win_rate = user_stats.iloc[0]["W"] / user_games if user_games else 0
 
-                cols1[0].metric(
-                    "Games Played",
-                    f"{user_games}",
-                    f"{'+' if user_games > league_averages['Games'] else ''}{user_games - league_averages['Games']:.1f}",
-                )
-                cols1[1].metric(
-                    "Goals Scored",
-                    f"{user_goals}",
-                    f"{'+' if user_goals > league_averages['GF'] else ''}{user_goals - league_averages['GF']:.1f}",
-                )
-                cols1[2].metric(
-                    "Goals Against",
-                    f"{user_goals_against}",
-                    f"{'+' if user_goals_against < league_averages['GA'] else ''}{user_goals_against - league_averages['GA']:.1f}",
-                )
+                # Games Played
+                with cols1[0]:
+                    diff = user_games - league_averages['Games']
+                    color = "green" if diff > 0 else "red" if diff < 0 else "grey"
+                    st.markdown(
+                        f"<div style='text-align:center;'><strong>Games Played</strong><br>"
+                        f"<span style='font-size: 1.5em;'>{user_games}</span><br>"
+                        f"<span style='color: {color};'>{'+' if diff > 0 else ''}{diff:.1f}</span></div>",
+                        unsafe_allow_html=True,
+                    )
 
-                cols2[0].metric(
-                    "Win Rate",
-                    f"{user_win_rate:.1%}",
-                    f"{'+' if user_win_rate > league_averages['W'] / league_averages['Games'] else ''}{(user_win_rate - league_averages['W'] / league_averages['Games']):.1%}",
-                )
-                cols2[1].metric(
-                    "Total xG For",
-                    f"{user_xg_for:.2f}",
-                    f"{'+' if user_xg_for > league_averages['xGF'] else ''}{user_xg_for - league_averages['xGF']:.2f}",
-                )
-                cols2[2].metric(
-                    "Total xG Against",
-                    f"{user_xg_against:.2f}",
-                    f"{'+' if user_xg_against < league_averages['xGA'] else ''}{user_xg_against - league_averages['xGA']:.2f}",
-                )
+                # Goals Scored
+                with cols1[1]:
+                    diff = user_goals - league_averages['GF']
+                    color = "green" if diff > 0 else "red" if diff < 0 else "grey"
+                    st.markdown(
+                        f"<div style='text-align:center;'><strong>Goals Scored</strong><br>"
+                        f"<span style='font-size: 1.5em;'>{user_goals}</span><br>"
+                        f"<span style='color: {color};'>{'+' if diff > 0 else ''}{diff:.1f}</span></div>",
+                        unsafe_allow_html=True,
+                    )
+
+                # Goals Against (lower is better)
+                with cols1[2]:
+                    diff = user_goals_against - league_averages['GA']
+                    color = "green" if diff < 0 else "red" if diff > 0 else "grey"
+                    st.markdown(
+                        f"<div style='text-align:center;'><strong>Goals Against</strong><br>"
+                        f"<span style='font-size: 1.5em;'>{user_goals_against}</span><br>"
+                        f"<span style='color: {color};'>{'-' if diff < 0 else '+' if diff > 0 else ''}{abs(diff):.1f}</span></div>",
+                        unsafe_allow_html=True,
+                    )
+
+                # Win Rate
+                with cols2[0]:
+                    diff = user_win_rate - (league_averages['W'] / league_averages['Games'])
+                    color = "green" if diff > 0 else "red" if diff < 0 else "grey"
+                    st.markdown(
+                        f"<div style='text-align:center;'><strong>Win Rate</strong><br>"
+                        f"<span style='font-size: 1.5em;'>{user_win_rate:.1%}</span><br>"
+                        f"<span style='color: {color};'>{'+' if diff > 0 else ''}{diff:.1%}</span></div>",
+                        unsafe_allow_html=True,
+                    )
+
+                # Total xG For
+                with cols2[1]:
+                    diff = user_xg_for - league_averages['xGF']
+                    color = "green" if diff > 0 else "red" if diff < 0 else "grey"
+                    st.markdown(
+                        f"<div style='text-align:center;'><strong>Total xG For</strong><br>"
+                        f"<span style='font-size: 1.5em;'>{user_xg_for:.2f}</span><br>"
+                        f"<span style='color: {color};'>{'+' if diff > 0 else ''}{diff:.2f}</span></div>",
+                        unsafe_allow_html=True,
+                    )
+
+                # Total xG Against (lower is better)
+                with cols2[2]:
+                    diff = user_xg_against - league_averages['xGA']
+                    color = "green" if diff < 0 else "red" if diff > 0 else "grey"
+                    st.markdown(
+                        f"<div style='text-align:center;'><strong>Total xG Against</strong><br>"
+                        f"<span style='font-size: 1.5em;'>{user_xg_against:.2f}</span><br>"
+                        f"<span style='color: {color};'>{'-' if diff < 0 else '+' if diff > 0 else ''}{abs(diff):.2f}</span></div>",
+                        unsafe_allow_html=True,
+                    )
+
+
 
             # Playoff Rankings
             if not playoff_results.empty:

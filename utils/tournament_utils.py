@@ -152,75 +152,81 @@ def initialize_standings(players, teams):
     })
 
 
-# Function to upsert results and avoid duplicates
-def upsert_results(results, new_result):
-    # Remove duplicates based on Game #
-    results = results.drop(results[results["Game #"] == new_result["Game #"]].index)
-    # Append the new result
-    results = pd.concat([results, pd.DataFrame([new_result])], ignore_index=True)
-    return results
+# Helper function: Safely retrieve session state variables
+def get_session_state(key, default=None):
+    return st.session_state.get(key, default)
 
+# Upsert Results: Add or update game results while avoiding duplicates
+def upsert_results(results, new_result):
+    """
+    Upserts a new game result into the results DataFrame, avoiding duplicates based on 'Game #'.
+    """
+    results = results.drop_duplicates(subset=["Game #"], keep="last")
+    new_result_df = pd.DataFrame([new_result])
+    return pd.concat([results, new_result_df], ignore_index=True)
+
+# Update Standings: Calculate points, goals, and xG dynamically
 def update_standings(standings, results):
-    standings = standings.set_index("Player")
-    standings["Points"] = 0
-    standings["Goals"] = 0
-    standings["xG"] = 0.0
-    standings["Games Played"] = 0
+    """
+    Updates the standings DataFrame based on game results.
+    """
+    standings = standings.set_index("Player").assign(Points=0, Goals=0, xG=0.0, Games_Played=0)
 
     for _, row in results.iterrows():
         if pd.isna(row["Home Goals"]) or pd.isna(row["Away Goals"]):
-            continue
+            continue  # Skip incomplete games
 
-        home = row["Home"]
-        away = row["Away"]
-        home_goals = int(row["Home Goals"])
-        away_goals = int(row["Away Goals"])
-        home_xg = float(row["Home xG"])
-        away_xg = float(row["Away xG"])
+        home, away = row["Home"], row["Away"]
+        home_goals, away_goals = int(row["Home Goals"]), int(row["Away Goals"])
+        home_xg, away_xg = float(row["Home xG"]), float(row["Away xG"])
 
-        # Update goals, xG, and games played
-        standings.at[home, "Goals"] += home_goals
-        standings.at[away, "Goals"] += away_goals
-        standings.at[home, "xG"] += home_xg
-        standings.at[away, "xG"] += away_xg
-        standings.at[home, "Games Played"] += 1
-        standings.at[away, "Games Played"] += 1
+        for team, goals, xg, points in [
+            (home, home_goals, home_xg, 3 if home_goals > away_goals else 1 if home_goals == away_goals else 0),
+            (away, away_goals, away_xg, 3 if away_goals > home_goals else 1 if home_goals == away_goals else 0),
+        ]:
+            if team in standings.index:
+                standings.loc[team, ["Goals", "xG", "Games_Played"]] += [goals, xg, 1]
+                standings.loc[team, "Points"] += points
 
-        # Award points
+    return standings.reset_index()
+
+# Calculate Outcomes: Wins, Losses, and Draws
+def calculate_outcomes(results):
+    """
+    Calculates wins, losses, and draws for all players based on game results.
+    """
+    outcomes = pd.DataFrame({"Player": get_session_state("players", [])}).assign(Wins=0, Losses=0, Draws=0)
+
+    for _, game in results.iterrows():
+        home, away = game["Home"], game["Away"]
+        home_goals, away_goals = int(game["Home Goals"]), int(game["Away Goals"])
+
         if home_goals > away_goals:
-            standings.at[home, "Points"] += 3
-        elif away_goals > home_goals:
-            standings.at[away, "Points"] += 3
-        else:  # Tie
-            standings.at[home, "Points"] += 1
-            standings.at[away, "Points"] += 1
-
-    return standings.reset_index().sort_values(by=["Points", "Goals", "xG"], ascending=False)
-
-# Calculate Wins, Losses, and Draws dynamically
-def calculate_outcomes(games):
-    outcomes = pd.DataFrame({"Player": st.session_state.players})
-    outcomes["Wins"] = 0
-    outcomes["Losses"] = 0
-    outcomes["Draws"] = 0
-
-    for _, game in games.iterrows():
-        home = game["Home"]
-        away = game["Away"]
-        home_goals = int(game["Home Goals"])
-        away_goals = int(game["Away Goals"])
-
-        if home_goals > away_goals:  # Home wins
             outcomes.loc[outcomes["Player"] == home, "Wins"] += 1
             outcomes.loc[outcomes["Player"] == away, "Losses"] += 1
-        elif away_goals > home_goals:  # Away wins
+        elif away_goals > home_goals:
             outcomes.loc[outcomes["Player"] == away, "Wins"] += 1
             outcomes.loc[outcomes["Player"] == home, "Losses"] += 1
-        else:  # Draw
-            outcomes.loc[outcomes["Player"] == home, "Draws"] += 1
-            outcomes.loc[outcomes["Player"] == away, "Draws"] += 1
+        else:
+            outcomes.loc[outcomes["Player"].isin([home, away]), "Draws"] += 1
 
     return outcomes
+
+# Sort Standings: Dynamically sort based on tiebreakers
+def sort_standings(standings, tiebreakers):
+    """
+    Sorts standings dynamically based on primary metrics and tiebreakers.
+    """
+    column_mapping = {"Goals For": "Goals", "xG For": "xG", "Wins": "Wins", "Draws": "Draws"}
+    primary_metric = "Points"
+    sorting_order = [primary_metric] + [column_mapping.get(metric, metric) for metric in tiebreakers]
+
+    return (
+        standings.sort_values(by=sorting_order, ascending=[False] * len(sorting_order))
+        .reset_index(drop=True)
+        .assign(Rank=lambda df: df.index + 1)
+    )
+
 
 # Function to calculate tournament duration
 def calculate_tournament_duration(schedule, half_duration):

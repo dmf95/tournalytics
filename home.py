@@ -1,6 +1,7 @@
 import streamlit as st
 from utils.auth_utils import authenticate_user, register_user
 import re
+from utils.data_utils import firestore_get_leagues, create_league_mapping
 
 #-1- Authentication needed: Signin page
 
@@ -74,6 +75,22 @@ if not st.session_state.get("authenticated", False):
 
 # Authentication complete: Home page
 else:
+    # Fetch league IDs and names if authenticated
+    league_ids = st.session_state["user_data"].get("league_ids", [])
+    if league_ids:
+        try:
+            # Fetch league names and create mapping
+            league_catalog = firestore_get_leagues(league_ids)
+            league_mapping = create_league_mapping(league_catalog)
+            league_names = list(league_mapping.values())
+
+            # Update session state
+            st.session_state["league_mapping"] = league_mapping
+            st.session_state["league_catalog"] = league_catalog
+            st.session_state["league_names"] = league_names
+
+        except Exception as e:
+            st.error(f"Error fetching league details: {e}", icon="❌")
 
     # Welcome Section
     st.markdown(

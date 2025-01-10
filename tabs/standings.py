@@ -11,6 +11,8 @@ from utils.tournament_utils import (
     initialize_standings,
     update_standings,
     calculate_outcomes,
+    get_session_state,
+    sort_standings
 )
 
 #-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-
@@ -27,73 +29,50 @@ def render():
         unsafe_allow_html=True,
     )
 
-    # Ensure 'results' exists
-    if "results" not in st.session_state:
+    # Check if results exist
+    if "results" not in st.session_state or st.session_state.results.empty:
         st.error("No results available. Please generate a tournament schedule first.", icon="❌")
         return
 
-    # Filter for completed round-robin games
-    games_played = st.session_state.results.dropna(subset=["Home Goals", "Away Goals"]).copy()
+    # Filter completed games
+    games_played = st.session_state.results.dropna(subset=["Home Goals", "Away Goals"])
 
-    # Recalculate standings dynamically based on completed games
-    st.session_state.standings = initialize_standings(st.session_state.players, st.session_state.teams)
-    st.session_state.standings = update_standings(st.session_state.standings, games_played)
+    # Initialize standings and update based on results
+    standings = initialize_standings(get_session_state("players"), get_session_state("teams"))
+    standings = update_standings(standings, games_played)
 
-    # Count unique games played for each player (round-robin)
-    games_played_count = (
-        games_played[["Game #", "Home", "Away"]]
-        .melt(id_vars=["Game #"], value_vars=["Home", "Away"], var_name="Role", value_name="Player")
-        .groupby("Player")
-        .agg(Played=("Game #", "nunique"))
-        .reset_index()
-    )
-
-    # Calculate Wins, Losses, and Draws dynamically for round-robin
+    # Calculate Wins, Losses, and Draws
     outcomes = calculate_outcomes(games_played)
 
-    # Merge games played count and outcomes into standings
-    standings = st.session_state.standings.merge(games_played_count, on="Player", how="left").fillna({"Played": 0})
-    standings = standings.merge(outcomes, on="Player", how="left")
+    # Merge outcomes and count games played
+    standings = (
+        standings.merge(outcomes, on="Player", how="left")
+        .fillna({"Wins": 0, "Losses": 0, "Draws": 0})
+        .assign(Played=lambda df: df["Games_Played"] + df.get("Playoff_Played", 0))
+    )
 
-    # Add Playoff Games Played if playoff results exist
+    # Add playoff games if available
     if "playoff_results" in st.session_state and not st.session_state.playoff_results.empty:
-        # Filter completed playoff games
-        playoff_games_played = st.session_state.playoff_results.dropna(subset=["Home Goals", "Away Goals"]).copy()
-
-        # Count unique playoff games played for each player
-        playoff_games_played_count = (
-            playoff_games_played[["Game #", "Home", "Away"]]
+        playoff_games = st.session_state.playoff_results.dropna(subset=["Home Goals", "Away Goals"])
+        playoff_counts = (
+            playoff_games[["Game #", "Home", "Away"]]
             .melt(id_vars=["Game #"], value_vars=["Home", "Away"], var_name="Role", value_name="Player")
             .groupby("Player")
             .agg(Playoff_Played=("Game #", "nunique"))
             .reset_index()
         )
-
-        # Merge playoff games played count into standings
-        standings = standings.merge(playoff_games_played_count, on="Player", how="left").fillna({"Playoff_Played": 0})
+        standings = standings.merge(playoff_counts, on="Player", how="left").fillna({"Playoff_Played": 0})
     else:
-        # Add a default Playoff_Played column if no playoff games are available
         standings["Playoff_Played"] = 0
 
-    # Map team names and safely handle missing teams
-    standings["Team"] = standings["Player"].map(st.session_state.get("teams", {}))
-
-    # Round xG values if the column exists
-    if "xG" in standings:
-        standings["xG"] = standings["xG"].round(2)
-
-    # Sort standings and reset index
-    standings = (
-        standings.sort_values(by=["Points", "Goals", "xG", "Wins"], ascending=False)
-        .reset_index(drop=True)
-        .assign(Rank=lambda df: df.index + 1)  # Add Rank column
-    )
-
-    # Reorder and select only the required columns
+    # Sort standings and apply rankings
+    standings = sort_standings(standings, get_session_state("tiebreakers", []))
+    
+    # Display final standings
     columns_to_display = ["Rank", "Team", "Points", "Played", "Wins", "Draws", "Losses", "Goals", "xG"]
     standings = standings.loc[:, [col for col in columns_to_display if col in standings]]
+    st.session_state["final_standings"] = standings
 
-    st.session_state['final_standings'] = standings
 
     # Display the updated standings table
     st.markdown(
@@ -110,13 +89,42 @@ def render():
             text-align: center;
             padding: 8px;
         }
+        .tiebreaker-note {
+            text-align: center;
+            margin: 5px auto 20px auto;
+            font-size: 0.8em;
+            color: #808080;
+            font-family: Arial, sans-serif;
+            word-wrap: break-word;
+            line-height: 0;
+        }
         </style>
         """,
         unsafe_allow_html=True,
     )
+
+    # Display a centered note about the tiebreakers used
+    if "tiebreakers" in st.session_state:
+        tiebreakers = st.session_state.get("tiebreakers", [])
+        tiebreaker_note = (
+            f"<strong>Order:</strong> Points (Primary)"
+            + (", " + ", ".join(tiebreakers) if tiebreakers else " (No additional tiebreakers selected).")
+        )
+        st.markdown(
+            f"""
+            <div class="tiebreaker-note">
+                {tiebreaker_note}
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+    # Display the standings table
     st.dataframe(standings, use_container_width=True, hide_index=True)
 
-    st.session_state.standings  = standings
+    # Update session state with the standings
+    st.session_state.standings = standings
+
 
 
     # Display the Games Played Table (Round Robin)
