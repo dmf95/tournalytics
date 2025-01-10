@@ -8,11 +8,12 @@ import numpy as np
 from datetime import datetime, date
 import json
 from utils.tournament_utils import determine_winner
-from utils.data_utils import save_tournament_complete, CustomJSONEncoder
-
+from utils.data_utils import save_tournament_complete, CustomJSONEncoder, save_tournament_complete_local
+import json
 #-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-
 #-- tournament.py: finals tab (4th)
 #-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-
+
 
 def render():
     # Validate session state
@@ -78,6 +79,7 @@ def display_final_matches(final_matches):
 
     # Display champion if all finals are completed
     if not final_matches["Home Goals"].isna().any() and not final_matches["Away Goals"].isna().any():
+        #handle_results_saving_local()
         handle_results_saving()
         display_champion(final_matches)
 
@@ -99,13 +101,25 @@ def display_champion(final_matches):
     st.image("assets/_champion.gif", caption=f"{winner_team} are the champions!", use_container_width=True)
 
 # Helper: Save results
+"""
+def handle_results_saving_local():
+    st.markdown("<div style='text-align: center; margin: 10px;'><h3>💾 Save Tournament Results</h3></div>", unsafe_allow_html=True)
+    if st.button("💾 Save Tournament Results", use_container_width=True):
+        with st.spinner("Saving tournament results..."):
+            try:
+                path = 'assets/'
+                save_tournament_complete_local(st.session_state, path, verbose=True)
+                st.success("Tournament results saved successfully! 🎉", icon="✅")
+            except Exception as e:
+                st.error(f"An error occurred: {str(e)}", icon="❌")
+"""
+# Helper: Save results
 def handle_results_saving():
     st.markdown("<div style='text-align: center; margin: 10px;'><h3>💾 Save Tournament Results</h3></div>", unsafe_allow_html=True)
     if st.button("💾 Save Tournament Results", use_container_width=True):
         with st.spinner("Saving tournament results..."):
             try:
-                save_path = "assets/"
-                save_tournament_complete(st.session_state, save_path=save_path, verbose=True)
+                save_tournament_complete(st.session_state, verbose=True)
                 st.success("Tournament results saved successfully! 🎉", icon="✅")
             except Exception as e:
                 st.error(f"An error occurred: {str(e)}", icon="❌")

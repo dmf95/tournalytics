@@ -1,31 +1,43 @@
 import streamlit as st
+import firebase_admin
+from firebase_admin import firestore
+from utils.data_utils import firestore_get_leagues
 
-# Show user details if authenticated
-st.markdown(
-    f"""
-    <div style="text-align: center; margin-bottom: 20px;">
-        <h2>Welcome, {st.session_state['username']}! 👋</h2>
-        <p style='font-size: 1em; color: #808080;'>Here are your account details</p>
-    </div>
-    """,
-    unsafe_allow_html=True,
-)
+# Initialize Firebase app if not already initialized
+if not firebase_admin._apps:
+    firebase_admin.initialize_app()
 
 
-st.markdown(
-    f"""
-    <div style="margin-bottom: 20px; padding: 15px; border: 1px solid #444; border-radius: 8px; background-color: #222;">
-        <h4 style="margin: 0; color: #fff;">👤 Account Details</h4>
-        <ul style="list-style: none; padding: 0; margin: 10px 0 0; color: #ccc;">
-            <li>📧 <strong>Email:</strong> {st.session_state.get('email', 'Not Available')}</li>
-            <li>🛡️ <strong>Role:</strong> {st.session_state['role']}</li>
-            <li>🏅 <strong>Leagues:</strong> {st.session_state.get('league_id', 'None')}</li>
-        </ul>
-    </div>
-    """,
-    unsafe_allow_html=True,
-)
+# Fetch league names if authenticated
+if st.session_state.get("authenticated", False):
+    league_ids = st.session_state.get("league_id", [])
+    league_names = firestore_get_leagues(league_ids)
+    st.session_state["league_names"] = league_names
 
+    # Show user details with updated league names
+    st.markdown(
+        f"""
+        <div style="text-align: center; margin-bottom: 20px;">
+            <h2>Welcome, {st.session_state['username']}! 👋</h2>
+            <p style='font-size: 1em; color: #808080;'>Here are your account details</p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    st.markdown(
+        f"""
+        <div style="margin-bottom: 20px; padding: 15px; border: 1px solid #444; border-radius: 8px; background-color: #222;">
+            <h4 style="margin: 0; color: #fff;">👤 Account Details</h4>
+            <ul style="list-style: none; padding: 0; margin: 10px 0 0; color: #ccc;">
+                <li>📧 <strong>Email:</strong> {st.session_state.get('email', 'Not Available')}</li>
+                <li>🛡️ <strong>Role:</strong> {st.session_state['role']}</li>
+                <li>🏅 <strong>Leagues:</strong> {", ".join(st.session_state.get('league_names', []))}</li>
+            </ul>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 # Navigation guidance
 st.markdown(
     """

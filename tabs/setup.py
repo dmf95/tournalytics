@@ -1,8 +1,9 @@
 import streamlit as st
 import pandas as pd
 from utils.general_utils import generate_unique_id
-from utils.data_utils import load_player_data_local
+from utils.data_utils import load_player_data_local, firestore_get_leagues, create_league_mapping
 from utils.tournament_utils import estimate_tournament_duration
+
 
 def update_current_step():
     """Updates the current step based on the progress flags."""
@@ -37,6 +38,8 @@ def render_start_over_button(tab):
         # Clear only tournament-related session state variables
         keys_to_clear = [
             "tournament_name",
+            "league_name",
+            "league_id",
             "event_date",
             "league_format",
             "playoff_format",
@@ -69,7 +72,6 @@ def render_start_over_button(tab):
         # Rerun the script
         st.success("Setup has been reset. You can start over!", icon="🔄")
         st.rerun()
-
 
 def render():
     # Initialize session state for progress tracking
@@ -144,53 +146,94 @@ def render():
         ["🛠️ 01 Create", "⚙️ 02 Setup", "👤 03 Players", "🎉 04 Finish"]
     )
 
-    # Create Tab
-    with tab_create:
+    # Check if user has league_ids
+    if st.session_state['user_data'].get("league_ids", []):
+        # Fetch league names from Firestore
+        league_ids = st.session_state['user_data']['league_ids']
+        league_catalog = firestore_get_leagues(league_ids)
+        league_mapping = create_league_mapping(league_catalog)
+        
+        # Store the league mapping in session state
+        st.session_state['league_mapping'] = league_mapping
+        st.session_state['leagues_catalog'] = league_catalog
+
+        # Store only league names in user_data if needed
+        st.session_state['user_data']['league_names'] = list(league_mapping.values())
+
+        # Create Tab
+        with tab_create:
+            st.markdown(
+                """
+                <div style='text-align: center; margin-bottom: 20px;'>
+                    <h3 style='margin-bottom: 5px;'>🎮 Create Tournament</h3>
+                    <p style='font-size: 14px; color: #808080;'>Enter the tournament details to get started.</p>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+
+            # League Selection Dropdown
+            st.session_state["league_name"]  = st.selectbox(
+                "Select League",
+                options=["Select a league"] + st.session_state['user_data']['league_names'],
+                key="select_league",
+                help="Choose the league to associate with this tournament.",
+            )
+
+            # Tournament Name Input
+            st.session_state["tournament_name"] = st.text_input(
+                "Tournament Name",
+                value=st.session_state['user_data'].get("tournament_name", ""),
+                key="create_tournament_name",
+                placeholder="Enter a unique tournament name",
+            )
+
+            # Event Date Input
+            event_date = st.date_input(
+                "Event Date",
+                key="create_event_date",
+                help="Select the date of the tournament.",
+            )
+
+            # Proceed Button with Icon
+            proceed_button = st.button(
+                "🚀 Proceed to Setup",
+                key="proceed_to_setup",
+                use_container_width=True,
+            )
+
+            # Logic for Proceed Button
+            if proceed_button:
+                if st.session_state.get("league_name") == "Select a league":
+                    st.error("You must select a league to associate this tournament.", icon="❌")
+                elif not st.session_state["tournament_name"]:
+                    st.error("Tournament Name cannot be empty.", icon="❌")
+                elif not event_date:
+                    st.error("Event Date must be selected.", icon="❌")
+                else:
+                    st.session_state["league_id"] = next(
+                        (key for key, value in st.session_state['league_mapping'].items() if value == st.session_state["league_name"]), 
+                        None
+                    )
+                    st.session_state["create_complete"] = True
+                    st.session_state["event_date"] = event_date
+                    st.success(f"Tournament created successfully in {st.session_state.get('league_name')}! Proceed to Setup.", icon="✅")
+
+
+            # Add Start Over Button
+            render_start_over_button(tab="setup_create")
+    else:
+        # If no league_id, lock the page
         st.markdown(
             """
-            <div style='text-align: center; margin-bottom: 20px;'>
-                <h3 style='margin-bottom: 5px;'>🎮 Create Tournament</h3>
-                <p style='font-size: 14px; color: #808080;'>Enter the tournament details to get started.</p>
+            <div style='text-align: center; margin-top: 50px;'>
+                <h3 style='margin-bottom: 10px; color: #808080;'>🔒 Locked</h3>
+                <p style='font-size: 14px; color: #ccc;'>You need to join a league to create a tournament.</p>
             </div>
             """,
             unsafe_allow_html=True,
         )
 
-        # Tournament Name Input
-        st.session_state["tournament_name"] = st.text_input(
-            "Tournament Name",
-            value=st.session_state.get("tournament_name", ""),
-            key="create_tournament_name",
-            placeholder="Enter a unique tournament name",
-        )
-
-        # Event Date Input
-        event_date = st.date_input(
-            "Event Date",
-            key="create_event_date",
-            help="Select the date of the tournament.",
-        )
-
-        # Proceed Button with Icon
-        proceed_button = st.button(
-            "🚀 Proceed to Setup",
-            key="proceed_to_setup",
-            use_container_width=True,
-        )
-
-        # Logic for Proceed Button
-        if proceed_button:
-            if not st.session_state["tournament_name"]:
-                st.error("Tournament Name cannot be empty.", icon="❌")
-            elif not event_date:
-                st.error("Event Date must be selected.", icon="❌")
-            else:
-                st.session_state["create_complete"] = True
-                st.session_state["event_date"] = event_date
-                st.success("Tournament created successfully! Proceed to Setup.", icon="✅") 
-
-        # Add Start Over Button
-        render_start_over_button(tab='setup_create')
 
     # General Setup Tab
     with tab_setup:
@@ -291,69 +334,69 @@ def render():
             )
         else:
             # Load and process player data
-            if "players" not in st.session_state:
+            if "players" not in st.session_state or st.session_state["players"] is None:
                 try:
-                    # Load players and add "source" column for default players
-                    loaded_players = load_player_data_local("assets/players.csv")
-                    loaded_players["source"] = "default"
-                    st.session_state["players"] = loaded_players
+                    # Ensure league_id is selected and members are available
+                    selected_league_id = st.session_state.get("league_id")
+                    if not selected_league_id:
+                        raise ValueError("No league selected. Please select a league to proceed.")
+
+                    # Fetch league data
+                    league_data = league_catalog.get(selected_league_id)
+                    if not league_data or "members" not in league_data:
+                        raise ValueError("No members found for the selected league.")
+
+                    # Extract player data from the league's members dictionary
+                    members = league_data["members"]  # e.g., {"user_id": "username"}
+                    players_data = [{"id": user_id, "username": username, "source": "league"} for user_id, username in members.items()]
+                    st.session_state["players"] = players_data
                 except Exception as e:
                     st.session_state["players"] = None
                     st.error(f"Failed to load player data: {e}", icon="❌")
-            # Ensure player data is loaded and formatted correctly
-            if "players" not in st.session_state or st.session_state["players"] is None:
-                st.error("No players available. Please add players on the Player Management page.", icon="❌")
-            else:
-                # Ensure "id" and "source" columns exist dynamically
-                players_data = st.session_state["players"].copy()
-                if "id" not in players_data.columns:
-                    players_data["id"] = None
-                if "source" not in players_data.columns:
-                    players_data["source"] = "default"
 
-                # Generate a list of player names in "First Last" format
-                player_names = (
-                    players_data["first_name"] + " " + players_data["last_name"]
-                ).tolist()
+            # Handle case where player data is missing
+            if not st.session_state.get("players"):
+                st.error("No players available. Please add players to the league.", icon="❌")
+                return
 
-                # Store player names in session state for selection
-                st.session_state["player_names"] = player_names
+            # Process player data
+            players_data = pd.DataFrame(st.session_state["players"])
+            # Ensure essential columns exist
+            for column, default_value in [("id", None), ("source", "league")]:
+                if column not in players_data.columns:
+                    players_data[column] = default_value
 
-                # Player Multiselect
-                selected_players = st.multiselect(
-                    "Select Players",
-                    options=player_names,
-                    default=player_names[: st.session_state.get("num_players", len(player_names))],
-                )
+            # Generate and store player usernames
+            player_names = players_data["username"].tolist()
+            st.session_state["player_names"] = player_names
 
-                # Validate the number of selected players
-                num_players_required = st.session_state.get("num_players", len(player_names))
-                if len(selected_players) != num_players_required:
-                    st.error(
-                        f"Please select exactly {num_players_required} players.", icon="❌"
-                    )
-                else:
-                    # Assign teams dynamically
-                    team_selection = {
-                        player: st.text_input(
-                            f"Team for {player}", value=f"Team {player.split()[0]}"
-                        )
-                        for player in selected_players
-                    }
+            # Player Multiselect
+            selected_players = st.multiselect(
+                "Select Players",
+                options=player_names,
+                default=player_names[: st.session_state.get("num_players", len(player_names))],
+            )
 
-                    # Proceed Button with Icon
-                    proceed_button = st.button(
-                        "🚀 Proceed to Finish",
-                        key="proceed_to_finish",
-                        use_container_width=True,
-                    )
+            # Validate selected players
+            num_players_required = st.session_state.get("num_players", len(player_names))
+            if len(selected_players) != num_players_required:
+                st.error(f"Please select exactly {num_players_required} players.", icon="❌")
+                return
 
-                    # Logic for Proceed Button
-                    if proceed_button:
-                        st.session_state["players_selected"] = True
-                        st.session_state["selected_players"] = selected_players
-                        st.session_state["team_selection"] = team_selection
-                        st.success("Player Setup completed! Proceed to the Finish.", icon="✅")
+            # Assign teams dynamically
+            team_selection = {
+                player: st.text_input(f"Team for {player}", value=f"Team {player.split()[0]}")
+                for player in selected_players
+            }
+
+            # Proceed Button with Logic
+            if st.button("🚀 Proceed to Finish", key="proceed_to_finish", use_container_width=True):
+                st.session_state.update({
+                    "players_selected": True,
+                    "selected_players": selected_players,
+                    "team_selection": team_selection
+                })
+                st.success("Player Setup completed! Proceed to the Finish.", icon="✅")
 
             # Add Start Over Button
             render_start_over_button(tab="setup_players")
@@ -385,6 +428,7 @@ def render():
             with st.expander("🏆 Tournament Details", expanded=True):
                 st.markdown(f"### 🏆 **{st.session_state['tournament_name']}**")
                 # Tournament details
+                st.write(f"**🏟️ League:** {st.session_state['league_name']}")
                 st.write(f"**📅 Date:** {st.session_state['event_date']}")
                 st.write(f"**🎯 Type:** {st.session_state['tournament_type']}")
                 st.write(f"**🏅 League Format:** {st.session_state['league_format']}")
@@ -419,10 +463,13 @@ def render():
                 key="save_tournament_setup",
                 use_container_width=True,
                 )
+
             if save_button:
                 tournament_id = generate_unique_id(id_length = 12, id_type='uuid')
                 st.session_state["tournaments"][tournament_id] = {
                     "tournament_name": st.session_state["tournament_name"],
+                    "league_id": st.session_state["league_id"],
+                    "league_name": st.session_state["league_name"],
                     "event_date": st.session_state["event_date"],
                     "league_format": st.session_state["league_format"],
                     "playoff_format": st.session_state["playoff_format"],

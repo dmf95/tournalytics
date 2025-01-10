@@ -84,7 +84,7 @@ def render():
 
     # Sort standings and reset index
     standings = (
-        standings.sort_values(by=["Points", "Wins", "Goals", "xG"], ascending=False)
+        standings.sort_values(by=["Points", "Goals", "xG", "Wins"], ascending=False)
         .reset_index(drop=True)
         .assign(Rank=lambda df: df.index + 1)  # Add Rank column
     )
@@ -92,6 +92,8 @@ def render():
     # Reorder and select only the required columns
     columns_to_display = ["Rank", "Team", "Points", "Played", "Wins", "Draws", "Losses", "Goals", "xG"]
     standings = standings.loc[:, [col for col in columns_to_display if col in standings]]
+
+    st.session_state['final_standings'] = standings
 
     # Display the updated standings table
     st.markdown(
@@ -113,6 +115,9 @@ def render():
         unsafe_allow_html=True,
     )
     st.dataframe(standings, use_container_width=True, hide_index=True)
+
+    st.session_state.standings  = standings
+
 
     # Display the Games Played Table (Round Robin)
     st.markdown(

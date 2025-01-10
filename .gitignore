@@ -30,4 +30,5 @@ assets/*.json
 *.csv
 *.tsv  # Add support for tab-separated value files, if applicabl
 
-# Ignore .env files
+# Ignore test notebooks
+*.ipynb

@@ -56,6 +56,7 @@ def render():
         # Tournament details
         st.markdown(f"### 🏆 **{st.session_state['tournament_name']}**")
         # Tournament details
+        st.write(f"**🏟️ League:** {tournament_details['league_name']}")
         st.write(f"**📅 Date:** {tournament_details['event_date']}")
         st.write(f"**🎯 Type:** {tournament_details['tournament_type']}")
         st.write(f"**🏅 League Format:** {tournament_details['league_format']}")

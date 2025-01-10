@@ -33,12 +33,18 @@ if not st.session_state.get("authenticated", False):
             else:
                 user_data = authenticate_user(identifier, password)
                 if user_data:
+                    st.session_state["user_data"] = {
+                        "username": user_data["username"],
+                        "role": user_data["role"],
+                        "email": user_data.get("email"),
+                        "league_ids": user_data.get("league_id"),
+                    }
                     st.session_state["authenticated"] = True
-                    st.session_state["username"] = user_data["username"]
-                    st.session_state["role"] = user_data["role"]
-                    st.session_state["email"] = user_data.get("email")
-                    st.session_state["league_id"] = user_data.get("league_id")
-                    st.success(f"Welcome, {user_data['username']}! Redirecting...")
+                    st.session_state["username"] = st.session_state["user_data"].get("username")
+                    st.session_state["role"] = st.session_state["user_data"].get("role")
+                    st.session_state["email"] = st.session_state["user_data"].get("email")
+                    st.session_state["league_ids"] = st.session_state["user_data"].get("league_ids")
+                    st.success(f"Welcome, {st.session_state['user_data']['username']}! Redirecting...")
                     st.rerun()
                 else:
                     st.error("Invalid identifier or password. Please try again.")
@@ -68,6 +74,7 @@ if not st.session_state.get("authenticated", False):
 
 # Authentication complete: Home page
 else:
+
     # Welcome Section
     st.markdown(
         f"""
@@ -89,7 +96,6 @@ else:
         """,
         unsafe_allow_html=True,
     )
-
     # Feature Cards with Page Links (styled buttons)
     col1, col2 = st.columns(2)
 
@@ -102,7 +108,6 @@ else:
 
     # Feature Cards with Page Links (styled buttons)
     col3, col4 = st.columns(2)
-
 
     with col3:
         st.page_link("stats.py", label="League Records", icon="📊")

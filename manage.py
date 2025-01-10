@@ -366,11 +366,13 @@ elif selected_tab == "Manage Leagues" and user_role in ["super_admin", "admin"]:
 
             # Add Players Section
             with st.expander("➕ Add Players to League", expanded=False):
+                # Filter available players (those not already in the league)
                 available_players = [
                     user_id for user_id, user_data in users.items()
                     if selected_league_id not in (user_data.get("league_id", []) or [])
                 ]
 
+                # Multiselect to choose players to add
                 selected_new_players = st.multiselect(
                     "Select Players to Add",
                     options=available_players,
@@ -379,21 +381,37 @@ elif selected_tab == "Manage Leagues" and user_role in ["super_admin", "admin"]:
 
                 if st.button("Add Players"):
                     try:
+                        update_log = {}  # Dictionary to log the players added (user_id -> username)
+
                         for player_id in selected_new_players:
-                            # Update the user's league_id list
+                            # Fetch user data
                             user_data = users[player_id]
                             user_league_list = user_data.get("league_id", []) or []
+                            user_name = user_data.get("username", "Unknown User")  # Fetch username
+
+                            # Update the user's league_id list in Firestore
                             if selected_league_id not in user_league_list:
                                 user_league_list.append(selected_league_id)
                                 db.collection("users").document(player_id).update({"league_id": user_league_list})
 
-                            # Update the league's members list
-                            if player_id not in current_members:
-                                current_members.append(player_id)
-                                db.collection("leagues").document(selected_league_id).update({"members": current_members})
+                            # Update the league's members list in Firestore
+                            current_members_dict = db.collection("leagues").document(selected_league_id).get().to_dict().get("members", {})
+                            if player_id not in current_members_dict:
+                                current_members_dict[player_id] = user_name
+                                db.collection("leagues").document(selected_league_id).update({"members": current_members_dict})
 
-                        st.success("Players successfully added to the league!", icon="✅")
+                            # Log the player addition
+                            update_log[player_id] = user_name
+
+                        # Display success message and log
+                        if update_log:
+                            st.success("Players successfully added to the league!", icon="✅")
+                            st.write("The following players were added:")
+                            for user_id, username in update_log.items():
+                                st.write(f"- {username} (ID: {user_id})")
+
                     except Exception as e:
+                        # Handle errors
                         st.error(f"Error adding players to league: {e}", icon="❌")
 
             # Remove Players Section

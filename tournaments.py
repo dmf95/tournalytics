@@ -25,6 +25,7 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
+
 # Initialize session state
 if "player_names" not in st.session_state:
     players_df = load_player_data_local("assets/players.csv")
@@ -86,7 +87,7 @@ elif st.session_state["active_section"] == "Tournament Management":
         tab1, tab2, tab3, tab4, tab5 = st.tabs(
             ["▶️ Start", "📊 Standings", "🏅 League", "⚔️ Playoffs", "🏆 Finals"]
 )
-        
+
     # Render each tab
     with tab1:
         selection_render()
