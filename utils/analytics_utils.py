@@ -1,17 +1,20 @@
 import pandas as pd
 import os
+ 
 
-def calculate_basic_analysis(results_df):
+def calculate_basic_analysis(tournament_dictionary):
     """
     Perform advanced analysis on tournament results for mobile-first analytics.
 
     Args:
-        results_df (pd.DataFrame): DataFrame containing tournament results.
+        tournament_dictionary (dict): A single Tournament's standings, results (league), playoff_results, & metadata
 
     Returns:
         dict: A dictionary with keys "kpi_summary", "overall", "win_rates", and "matchups".
     """
     analysis = {}
+
+    results_df = pd.DataFrame(tournament_dictionary.get("results", []))
 
     # KPI Summary
     total_games = len(results_df)

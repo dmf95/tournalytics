@@ -3,7 +3,19 @@ Utility functions for Tournalytics project.
 """
 
 from .auth_utils import authenticate_user, create_user_metadata
-from .data_utils import load_player_data_local, load_previous_tournaments, save_tournament
+from .data_utils import (
+    firestore_get_leagues,
+    firestore_get_all_leagues,
+    firestore_add_league,
+    firestore_update_league_admins,
+    firestore_add_players_to_league,
+    firestore_remove_players_from_league,
+    firestore_get_user,
+    firestore_get_all_users,
+    firestore_batch_update_users,
+    create_league_mapping,
+    filter_users_by_role
+)
 from .general_utils import initialize_session_state, generate_unique_id
 from .tournament_utils import (
     generate_league_schedule,

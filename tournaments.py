@@ -5,7 +5,6 @@ import numpy as np
 # Custom libraries
 from utils.tournament_utils import generate_league_schedule
 from utils.general_utils import initialize_session_state
-from utils.data_utils import load_player_data_local
 from tabs import (
     setup_render,
     selection_render,
@@ -25,12 +24,10 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
+if "players" not in st.session_state:
+    st.session_state["players"]  = []
 
 # Initialize session state
-if "player_names" not in st.session_state:
-    players_df = load_player_data_local("assets/players.csv")
-    st.session_state["player_names"] = players_df["first_name"] + " " + players_df["last_name"]
-
 if "tournaments" not in st.session_state:
     st.session_state["tournaments"] = {}
 

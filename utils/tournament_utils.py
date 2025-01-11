@@ -213,11 +213,14 @@ def calculate_outcomes(results):
     return outcomes
 
 # Sort Standings: Dynamically sort based on tiebreakers
-def sort_standings(standings, tiebreakers):
+def sort_standings(
+            standings, 
+            tiebreakers, 
+            column_mapping = {"Goals For": "Goals", "xG For": "xG", "Wins": "Wins", "Draws": "Draws"}
+    ):
     """
     Sorts standings dynamically based on primary metrics and tiebreakers.
     """
-    column_mapping = {"Goals For": "Goals", "xG For": "xG", "Wins": "Wins", "Draws": "Draws"}
     primary_metric = "Points"
     sorting_order = [primary_metric] + [column_mapping.get(metric, metric) for metric in tiebreakers]
 

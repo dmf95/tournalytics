@@ -38,13 +38,13 @@ if not st.session_state.get("authenticated", False):
                         "username": user_data["username"],
                         "role": user_data["role"],
                         "email": user_data.get("email"),
-                        "league_ids": user_data.get("league_id"),
+                        "league_id": user_data.get("league_id"),
                     }
                     st.session_state["authenticated"] = True
                     st.session_state["username"] = st.session_state["user_data"].get("username")
                     st.session_state["role"] = st.session_state["user_data"].get("role")
                     st.session_state["email"] = st.session_state["user_data"].get("email")
-                    st.session_state["league_ids"] = st.session_state["user_data"].get("league_ids")
+                    st.session_state["league_id"] = st.session_state["user_data"].get("league_id")
                     st.success(f"Welcome, {st.session_state['user_data']['username']}! Redirecting...")
                     st.rerun()
                 else:
@@ -76,18 +76,22 @@ if not st.session_state.get("authenticated", False):
 # Authentication complete: Home page
 else:
     # Fetch league IDs and names if authenticated
-    league_ids = st.session_state["user_data"].get("league_ids", [])
+    league_ids = st.session_state["user_data"].get("league_id", [])
+    
     if league_ids:
         try:
-            # Fetch league names and create mapping
+            # Batch fetch leagues and create mapping
             league_catalog = firestore_get_leagues(league_ids)
             league_mapping = create_league_mapping(league_catalog)
             league_names = list(league_mapping.values())
-
+            
             # Update session state
-            st.session_state["league_mapping"] = league_mapping
-            st.session_state["league_catalog"] = league_catalog
-            st.session_state["league_names"] = league_names
+            if "league_mapping" not in st.session_state:
+                st.session_state["league_mapping"] = league_mapping
+            if "league_catalog" not in st.session_state:
+                st.session_state["league_catalog"] = league_catalog
+            if "league_names" not in st.session_state:
+                st.session_state["league_names"] = league_names
 
         except Exception as e:
             st.error(f"Error fetching league details: {e}", icon="❌")
@@ -113,22 +117,17 @@ else:
         """,
         unsafe_allow_html=True,
     )
+
     # Feature Cards with Page Links (styled buttons)
     col1, col2 = st.columns(2)
-
     with col1:
         st.page_link("tournaments.py", label="Start a Tournament", icon="🏆", help="Build or Run a Tournament for your Leagues")
-        
     with col2:
         st.page_link("manage.py", label="Manage Leagues", icon="🏟️")
 
-
-    # Feature Cards with Page Links (styled buttons)
     col3, col4 = st.columns(2)
-
     with col3:
         st.page_link("stats.py", label="League Records", icon="📊")
-
     with col4:
         st.page_link("profile.py", label="My Profile", icon="👤")
 

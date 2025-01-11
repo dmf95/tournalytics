@@ -1,190 +1,190 @@
 ## Libraries
-
 import json
-from datetime import datetime, date  
-import pandas as pd
-import streamlit as st
 import os
+from datetime import datetime, date
+import pandas as pd
 import sqlalchemy
+import streamlit as st
 import firebase_admin
 from firebase_admin import firestore
-from datetime import datetime
 
-## Configs
-
-# Initialize Firebase app if not already initialized
+# Initialize Firestore client
 if not firebase_admin._apps:
     firebase_admin.initialize_app()
 
-## Functions
+db = firestore.client()
 
-def load_previous_tournaments():
-    if os.path.exists("tournaments.csv"):
-        return pd.read_csv("tournaments.csv")
-    return pd.DataFrame(columns=["Tournament ID", "Tournament Name", "Status"])
 
-def load_player_data_local(path):
-    return pd.read_csv(path)
-
-def save_tournament(tournament_id, tournament_name, standings, results):
-    results.to_csv(f"tournament_{tournament_id}_results.csv", index=False)
-    standings.to_csv(f"tournament_{tournament_id}_standings.csv", index=False)
-
-    tournaments = load_previous_tournaments()
-    tournaments = pd.concat([
-        tournaments,
-        pd.DataFrame([{"Tournament ID": tournament_id, "Tournament Name": tournament_name, "Status": "Completed"}])
-    ])
-    tournaments.to_csv("tournaments.csv", index=False)
-
+# --- FIRESTORE READ/WRITE FUNCTIONS ---
+@st.cache_data(ttl=600)
 def firestore_get_leagues(league_ids):
     """
-    Fetch league data for a list of league IDs from Firestore.
-
-    Args:
-        league_ids (list): List of league IDs.
-
-    Returns:
-        dict: A dictionary with league IDs as keys and their corresponding attributes as values.
+    Fetch data for multiple league IDs using batch reads.
     """
-    db = firestore.client()
-    league_data = {}
     try:
-        for league_id in league_ids:
-            doc_ref = db.collection("leagues").document(league_id)
-            doc = doc_ref.get()
-            if doc.exists:
-                league_data[league_id] = doc.to_dict()  # Fetch all attributes
-            else:
-                league_data[league_id] = {"error": "League not found"}
+        doc_refs = [db.collection("leagues").document(league_id) for league_id in league_ids]
+        docs = db.get_all(doc_refs)
+        return {
+            doc.id: doc.to_dict() if doc.exists else {"error": "League not found"}
+            for doc in docs
+        }
     except Exception as e:
         st.error(f"Error fetching league data: {e}")
-    return league_data
+        return {}
 
-def create_league_mapping(league_catalog):
+
+@st.cache_data(ttl=600)
+def firestore_get_all_users():
     """
-    Create a league mapping with league_id as the key and league_name as the value.
-
-    Args:
-        league_catalog (dict): Dictionary with league_ids as keys and their corresponding attributes as values.
-
-    Returns:
-        dict: A dictionary with league_ids as keys and league_names as values.
-    """
-    league_mapping = {}
-    for league_id, league_data in league_catalog.items():
-        # Extract league_name if it exists, otherwise use a default value
-        league_name = league_data.get("league_name", "Unknown League")
-        league_mapping[league_id] = league_name
-    return league_mapping
-
-
-# Define a custom encoder to handle non-serializable types
-class CustomJSONEncoder(json.JSONEncoder):
-    def default(self, obj):
-        if isinstance(obj, (datetime, date)):
-            return obj.isoformat()  # Convert date and datetime to ISO format strings
-        return super().default(obj)
-
-def save_tournament_complete_local(session_state, save_path="", verbose=False):
-    """
-    Save tournament data to a file or return it as a dictionary.
-    """
-    required_keys = ["standings", "results", "playoff_results", "selected_tournament_id"]
-
-    # Validate session state keys
-    for key in required_keys:
-        if key not in session_state or (key == "selected_tournament_id" and not session_state[key]):
-            raise ValueError(f"Missing required session state key: {key}")
-
-    tournament_id = session_state.selected_tournament_id
-    tournament_metadata = session_state.tournaments.get(tournament_id, {})
-    tournament_metadata["tournament_id"] = tournament_id
-
-    # Enhance the tables with the tournament_id column
-    standings = session_state.standings.copy()
-    standings["tournament_id"] = tournament_id
-
-    results = session_state.results.copy()
-    results["tournament_id"] = tournament_id
-
-    playoff_results = session_state.playoff_results.copy()
-    playoff_results["tournament_id"] = tournament_id
-
-    # Log the results as a single dictionary
-    tournament_data = {
-        "standings": standings.to_dict(orient="records"),
-        "results": results.to_dict(orient="records"),
-        "playoff_results": playoff_results.to_dict(orient="records"),
-        "metadata": tournament_metadata,
-    }
-
-    # Save the data to a file if a path is provided
-    if save_path:
-        timestamp = datetime.now().strftime("%d%m%Y%H%M")
-        filename = f"{save_path}/tournament_{tournament_id}_{timestamp}.json"
-        try:
-            with open(filename, "w") as f:
-                json.dump(tournament_data, f, indent=4, cls=CustomJSONEncoder)
-            if verbose:
-                print(f"Tournament data saved to {filename}")
-        except Exception as e:
-            raise IOError(f"Failed to save tournament data: {str(e)}")
-
-    return tournament_data
-
-
-def insert_player_data(data, file_path="assets/players.csv"):
-    """
-    Insert player data into the players CSV file.
-
-    Parameters:
-    - data (list of dict): List of player dictionaries with keys 'first_name', 'last_name', and 'team_name'.
-    - file_path (str): Path to the players CSV file (default: "assets/players.csv").
-    
-    Returns:
-    None
-    """
-    # Ensure the file exists; if not, create it with the appropriate columns
-    if not os.path.exists(file_path):
-        pd.DataFrame(columns=["first_name", "last_name", "team_name"]).to_csv(file_path, index=False)
-
-    # Load the existing data
-    existing_data = pd.read_csv(file_path)
-
-    # Convert the input data to a DataFrame
-    new_data = pd.DataFrame(data)
-
-    # Append the new data to the existing data
-    updated_data = pd.concat([existing_data, new_data], ignore_index=True)
-
-    # Save the updated data back to the file
-    updated_data.to_csv(file_path, index=False)
-
-def insert_new_player_data(new_players):
-    """
-    Inserts new player data into a database table.
+    Fetch all users from Firestore.
     """
     try:
-        # Establish a connection to the database
-        engine = sqlalchemy.create_engine("sqlite:///players.db")  # Example with SQLite
-        connection = engine.connect()
-
-        # Convert new players (list of dicts) to a DataFrame
-        new_data = pd.DataFrame(new_players)
-
-        # Insert new data into the database
-        new_data.to_sql("players", con=connection, if_exists="append", index=False)
-
-        # Close the connection
-        connection.close()
+        users_ref = db.collection("users").get()
+        return {user.id: user.to_dict() for user in users_ref}
     except Exception as e:
-        raise ValueError(f"Error persisting data to database: {e}")
+        st.error(f"Error fetching all users: {e}")
+        return {}
+
+@st.cache_data(ttl=600)
+def firestore_get_all_leagues():
+    """
+    Fetch all leagues from Firestore.
+    """
+    try:
+        leagues_ref = db.collection("leagues").get()
+        return {league.id: league.to_dict() for league in leagues_ref}
+    except Exception as e:
+        st.error(f"Error fetching all leagues: {e}")
+        return {}
 
 
-import json
-from datetime import date, datetime
-from firebase_admin import firestore
+def firestore_add_league(league_name, league_type, created_by, admins, super_admin):
+    """
+    Add a new league to Firestore with its metadata, admins, and super admin.
+    """
+    try:
+        league_ref = db.collection("leagues").document()
+        league_data = {
+            "league_name": league_name,
+            "league_type": league_type,
+            "created_by": created_by,
+            "admins": admins,
+            "super_admin": super_admin,
+            "created_at": firestore.SERVER_TIMESTAMP,  # Adds creation timestamp
+        }
+        league_ref.set(league_data)
+        return {"success": True, "league_id": league_ref.id}
+    except Exception as e:
+        return {"success": False, "message": str(e)}
+
+
+def firestore_update_league_admins(league_id, new_admins):
+    """
+    Updates the list of admins for a given league in Firestore.
+
+    Args:
+        league_id (str): The ID of the league to update.
+        new_admins (list): The updated list of admin user IDs.
+
+    Returns:
+        dict: A dictionary indicating success or failure with a message.
+    """
+    try:
+        league_ref = db.collection("leagues").document(league_id)
+        league_ref.update({"admins": new_admins})
+        return {"success": True, "message": "Admins updated successfully."}
+    except Exception as e:
+        return {"success": False, "message": str(e)}
+
+
+def firestore_add_players_to_league(league_id, player_ids):
+    """
+    Add multiple players to a league in Firestore.
+    """
+    try:
+        league_ref = db.collection("leagues").document(league_id)
+        current_members = league_ref.get().to_dict().get("members", [])
+        new_members = list(set(current_members + player_ids))
+        league_ref.update({"members": new_members})
+        return {"success": True, "message": "Players added successfully."}
+    except Exception as e:
+        st.error(f"Error adding players to league: {e}")
+        return {"success": False, "message": str(e)}
+
+
+def firestore_remove_players_from_league(league_id, player_ids):
+    """
+    Remove multiple players from a league in Firestore.
+    """
+    try:
+        league_ref = db.collection("leagues").document(league_id)
+        current_members = league_ref.get().to_dict().get("members", [])
+        updated_members = [player for player in current_members if player not in player_ids]
+        league_ref.update({"members": updated_members})
+        return {"success": True, "message": "Players removed successfully."}
+    except Exception as e:
+        st.error(f"Error removing players from league: {e}")
+        return {"success": False, "message": str(e)}
+
+
+def firestore_get_user(user_id):
+    """
+    Fetch a single user's data by their ID.
+    """
+    try:
+        user_doc = db.collection("users").document(user_id).get()
+        if user_doc.exists:
+            return user_doc.to_dict()
+        else:
+            return {"error": "User not found"}
+    except Exception as e:
+        st.error(f"Error fetching user data: {e}")
+        return {}
+
+
+def firestore_batch_update_users(user_updates):
+    """
+    Batch update user data in Firestore.
+    """
+    try:
+        batch = db.batch()
+        for user_id, updates in user_updates.items():
+            user_ref = db.collection("users").document(user_id)
+            batch.update(user_ref, updates)
+        batch.commit()
+        return {"success": True, "message": "Batch update completed successfully."}
+    except Exception as e:
+        st.error(f"Error in batch updating users: {e}")
+        return {"success": False, "message": str(e)}
+
+
+def firestore_query_tournaments_by_league(league_id):
+    """
+    Query Firestore for tournaments associated with a specific league.
+
+    Args:
+        league_id (str): The ID of the league to filter tournaments by.
+
+    Returns:
+        list: A list of dictionaries representing the tournaments for the given league.
+    """
+    db = firestore.client()
+    try:
+        # Query the tournaments collection filtered by league_id
+        tournaments_ref = db.collection("tournaments").where("metadata.league_id", "==", league_id).stream()
+        
+        # Parse the query results
+        tournaments = [doc.to_dict() for doc in tournaments_ref]
+        
+        return tournaments
+    except Exception as e:
+        # Log error and return an empty list
+        print(f"Error querying tournaments by league: {e}")
+        return []
+
+
+
+# --- FIRESTORE FUNCTIONS, SAVE TOURNAMENT ---
 
 
 def make_serializable(obj):
@@ -285,3 +285,35 @@ def save_tournament_complete(session_state, verbose=False):
         raise RuntimeError(f"Failed to save tournament data to Firestore: {e}")
 
     return tournament_id
+
+# --- DATA MANIPULATION FUNCTIONS ---
+
+def create_league_mapping(league_catalog):
+    """
+    Create a league mapping with league_id as the key and league_name as the value.
+
+    Args:
+        league_catalog (dict): Dictionary with league_ids as keys and their corresponding attributes as values.
+
+    Returns:
+        dict: A dictionary with league_ids as keys and league_names as values.
+    """
+    league_mapping = {}
+    for league_id, league_data in league_catalog.items():
+        # Extract league_name if it exists, otherwise use a default value
+        league_name = league_data.get("league_name", "Unknown League")
+        league_mapping[league_id] = league_name
+    return league_mapping
+
+def filter_users_by_role(users, roles):
+    """
+    Filter users locally by roles.
+
+    Args:
+        users (dict): All users fetched from Firestore.
+        roles (list): List of roles to filter by.
+
+    Returns:
+        dict: Filtered users by roles.
+    """
+    return {user_id: user_data for user_id, user_data in users.items() if user_data.get("role") in roles}

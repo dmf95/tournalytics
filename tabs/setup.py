@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 from utils.general_utils import generate_unique_id
-from utils.data_utils import load_player_data_local, firestore_get_leagues, create_league_mapping
+from utils.data_utils import firestore_get_leagues, create_league_mapping
 from utils.tournament_utils import estimate_tournament_duration
 
 
@@ -74,6 +74,7 @@ def render_start_over_button(tab):
         st.rerun()
 
 def render():
+
     # Initialize session state for progress tracking
     if "create_complete" not in st.session_state:
         st.session_state["create_complete"] = False
@@ -173,7 +174,7 @@ def render():
         else:
 
             # Fetch league names from Firestore
-            league_ids = st.session_state['user_data']['league_ids']
+            league_ids = st.session_state['user_data']['league_id']
             league_catalog = st.session_state['league_catalog']
             league_mapping = st.session_state['league_mapping']
             league_names = list(league_mapping.values()) 
@@ -398,78 +399,96 @@ def render():
         )
 
         if not st.session_state.get("setup_complete", False):
-            st.warning(
-                "Complete the General Setup step first to unlock this tab.", icon="🔒"
+            st.markdown(
+                """
+                <div style='text-align: center; margin-top: 50px;'>
+                    <h3 style='margin-bottom: 10px; color: #808080;'>🔒 Locked</h3>
+                    <p style='font-size: 14px; color: #ccc;'>Complete the General Setup step first to unlock this tab.</p>
+                </div>
+                """,
+                unsafe_allow_html=True,
             )
-        else:
-            # Load and process player data
-            if "players" not in st.session_state or st.session_state["players"] is None:
-                try:
-                    # Ensure league_id is selected and members are available
-                    selected_league_id = st.session_state.get("league_id")
-                    if not selected_league_id:
-                        raise ValueError("No league selected. Please select a league to proceed.")
+            return
 
-                    # Fetch league data
-                    league_data = league_catalog.get(selected_league_id)
-                    if not league_data or "members" not in league_data:
-                        raise ValueError("No members found for the selected league.")
+        # Forcefully reload player data if required
+        if "players" not in st.session_state or st.session_state["players"] is None or not st.session_state["players"]:
+            try:
+                # Ensure league_id is selected
+                selected_league_id = st.session_state.get("league_id")
+                st.write(f"Selected League ID: {selected_league_id}")  # Debugging step
 
-                    # Extract player data from the league's members dictionary
-                    members = league_data["members"]  # e.g., {"user_id": "username"}
-                    players_data = [{"id": user_id, "username": username, "source": "league"} for user_id, username in members.items()]
+                if not selected_league_id:
+                    raise ValueError("No league selected. Please select a league to proceed.")
+
+                # Fetch league data
+                league_data = league_catalog.get(selected_league_id, {})
+
+                # Extract members
+                members = league_data.get("members", {})  # e.g., {"user_id": "username"}
+
+                if not members:
+                    st.warning("No members found for the selected league. Please add players.")
+                    st.session_state["players"] = []  # Ensure players is initialized to an empty list
+                else:
+                    # Format player data with fallback for missing usernames
+                    players_data = [
+                        {"id": user_id, "username": username or f"Player_{user_id}", "source": "league"}
+                        for user_id, username in members.items()
+                    ]
                     st.session_state["players"] = players_data
-                except Exception as e:
-                    st.session_state["players"] = None
-                    st.error(f"Failed to load player data: {e}", icon="❌")
-
-            # Handle case where player data is missing
-            if not st.session_state.get("players"):
-                st.error("No players available. Please add players to the league.", icon="❌")
+                    st.write("Players data loaded successfully!")  # Debugging success message
+            except Exception as e:
+                st.session_state["players"] = []
+                st.error(f"Failed to load player data: {e}", icon="❌")
                 return
 
-            # Process player data
-            players_data = pd.DataFrame(st.session_state["players"])
-            # Ensure essential columns exist
-            for column, default_value in [("id", None), ("source", "league")]:
-                if column not in players_data.columns:
-                    players_data[column] = default_value
+        # Handle case where player data is missing
+        if not st.session_state.get("players", []):
+            st.error("No players available. Please add players to the league.", icon="❌")
+            return
 
-            # Generate and store player usernames
-            player_names = players_data["username"].tolist()
-            st.session_state["player_names"] = player_names
+        # Process player data
+        players_data = pd.DataFrame(st.session_state["players"])
 
-            # Player Multiselect
-            selected_players = st.multiselect(
-                "Select Players",
-                options=player_names,
-                default=player_names[: st.session_state.get("num_players", len(player_names))],
-            )
+        # Ensure essential columns exist
+        for column, default_value in [("id", None), ("source", "league")]:
+            if column not in players_data.columns:
+                players_data[column] = default_value
 
-            # Validate selected players
-            num_players_required = st.session_state.get("num_players", len(player_names))
-            if len(selected_players) != num_players_required:
-                st.error(f"Please select exactly {num_players_required} players.", icon="❌")
-                return
+        # Generate player usernames
+        player_names = players_data["username"].tolist()
+        st.session_state["player_names"] = player_names
 
-            # Assign teams dynamically
-            team_selection = {
-                player: st.text_input(f"Team for {player}", value=f"Team {player.split()[0]}")
-                for player in selected_players
-            }
+        # Player Multiselect
+        selected_players = st.multiselect(
+            "Select Players",
+            options=player_names,
+            default=player_names[: st.session_state.get("num_players", len(player_names))],
+        )
 
-            # Proceed Button with Logic
-            if st.button("🚀 Proceed to Finish", key="proceed_to_finish", use_container_width=True):
-                st.session_state.update({
-                    "players_selected": True,
-                    "selected_players": selected_players,
-                    "team_selection": team_selection
-                })
-                st.success("Player Setup completed! Proceed to the Finish.", icon="✅")
+        # Validate selected players
+        num_players_required = st.session_state.get("num_players", len(player_names))
+        if len(selected_players) != num_players_required:
+            st.error(f"Please select exactly {num_players_required} players.", icon="❌")
+            return
 
-            # Add Start Over Button
-            render_start_over_button(tab="setup_players")
+        # Assign teams dynamically
+        team_selection = {
+            player: st.text_input(f"Team for {player}", value=f"Team {player.split()[0]}")
+            for player in selected_players
+        }
 
+        # Proceed Button with Logic
+        if st.button("🚀 Proceed to Finish", key="proceed_to_finish", use_container_width=True):
+            st.session_state.update({
+                "players_selected": True,
+                "selected_players": selected_players,
+                "team_selection": team_selection,
+            })
+            st.success("Player Setup completed! Proceed to the Finish.", icon="✅")
+
+        # Add Start Over Button
+        render_start_over_button(tab="setup_players")
 
     # Finish Tab
     with tab_finish:
@@ -483,7 +502,15 @@ def render():
             unsafe_allow_html=True,
         )
         if not st.session_state["players_selected"]:
-            st.warning("Complete the Player Selection step first to unlock this tab.", icon="🔒")
+            st.markdown(
+                """
+                <div style='text-align: center; margin-top: 50px;'>
+                    <h3 style='margin-bottom: 10px; color: #808080;'>🔒 Locked</h3>
+                    <p style='font-size: 14px; color: #ccc;'>Complete the Player Selection step first to unlock this tab.</p>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
         else:
             # Estimate tournament duration
             duration_breakdown = estimate_tournament_duration(
