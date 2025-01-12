@@ -2,7 +2,7 @@ import os
 import json
 from datetime import datetime
 import firebase_admin
-from firebase_admin import credentials, firestore, auth
+from firebase_admin import credentials, firestore, auth, initialize_app
 from dotenv import load_dotenv
 import re
 import requests
@@ -14,15 +14,16 @@ import streamlit as st
 # PROD
 #--------
 # Access credentials and Firebase details from Streamlit secrets
-firebase_credentials = st.secrets["GOOGLE_APPLICATION_CREDENTIALS"]  # JSON string of Google credentials
-project_id = st.secrets["FIREBASE"]["project_id"]  # Firebase project ID
-api_key = st.secrets["FIREBASE"]["api_key"]  # Firebase API Key
+firebase_credentials = st.secrets["GOOGLE_APPLICATION_CREDENTIALS"]
+# Access Firebase secrets
+project_id = st.secrets["FIREBASE"]["project_id"]
+database_url = st.secrets["FIREBASE"]["database_url"]
+api_key = st.secrets["FIREBASE"]["api_key"]
 
-# Initialize Firebase Admin SDK if not already initialized
+# Initialize Firebase Admin SDK
 if not firebase_admin._apps:
-    # Convert JSON string to dictionary for Firebase credentials
     cred = credentials.Certificate(firebase_credentials)
-    firebase_admin.initialize_app(cred, {"projectId": project_id})
+    initialize_app(cred, {"projectId": firebase_credentials["project_id"]})
 
 # Firestore client
 db = firestore.client()
@@ -204,7 +205,7 @@ def register_user(email, password, username, role="user", league_id=None):
 
 
 
-def authenticate_user(identifier, password=None):
+def authenticate_user(identifier, FIREBASE_API_KEY, password=None):
     """
     Authenticate a user by either email or username.
 
@@ -212,7 +213,6 @@ def authenticate_user(identifier, password=None):
     """
     try:
         # Fetch Firebase API key
-        api_key = os.getenv("FIREBASE_API_KEY")
         if not api_key:
             raise ValueError("FIREBASE_API_KEY is not set in the environment variables.")
 
