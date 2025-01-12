@@ -34,4 +34,3 @@ from .tournament_utils import (
     update_final_matches
 
 )
-from .viz_utils import plot_bracket, create_bracket_visualization
