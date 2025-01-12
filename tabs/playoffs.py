@@ -15,8 +15,11 @@ from utils.tournament_utils import (
     calculate_outcomes,
     determine_winner,
     get_session_state,
-    sort_standings
+    sort_standings,
+    validate_league_completion,
+    update_playoff_results
 )
+
 
 #-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-
 #-- tournament.py: playoffs tab (3rd)
@@ -33,134 +36,113 @@ def render():
         st.warning("Tournament schedule is missing. Generate the schedule first.", icon="🔒")
         return
 
-    # Reset Playoff Bracket
-    #if st.button("Reset Playoff Games"):
-    #    if "playoff_results" in st.session_state:
-    #        del st.session_state["playoff_results"]
-    #    st.success("Playoff results cache has been cleared!")
-
     # Ensure results DataFrame exists and is valid
     if "results" not in st.session_state or st.session_state.results.empty:
         st.warning("No results available. Please complete the League stage first.", icon="🔒")
+        return
 
-    # Handle playoff_results safely
-    if "playoff_results" not in st.session_state or st.session_state.playoff_results.empty:
+    # Extract the selected tournament ID and details
+    tournament_details = st.session_state["tournaments"][st.session_state["selected_tournament_id"]]
+
+    # Extract necessary details
+    players = tournament_details["selected_players"]
+    teams = tournament_details["team_selection"]
+
+    # Display League Schedule
+    league_schedule = pd.DataFrame(st.session_state["schedule"])
+
+    # Check if league games are complete
+    games_played = st.session_state.results.dropna(subset=["Home Goals", "Away Goals"]).copy()
+    league_match_history = games_played[
+        ["Game #", "Home Team", "Away Team", "Home Goals", "Away Goals", "Home xG", "Away xG"]
+    ]
+    league_match_history["Home xG"] = league_match_history["Home xG"].round(2)
+    league_match_history["Away xG"] = league_match_history["Away xG"].round(2)
+    league_match_history.index = league_match_history.index + 1
+    league_complete = validate_league_completion(league_schedule, league_match_history,  debug=False)
+
+    # Display locked message if league is incomplete
+    if not league_complete:
         st.markdown(
             """
             <div style='text-align: center; margin-top: 50px;'>
                 <h3 style='margin-bottom: 10px; color: #808080;'>🔒 Locked</h3>
-                <p style='font-size: 14px; color: #ccc;'>Complete all League Games to unlock Playoffs Bracket.</p>
+                <p style='font-size: 14px; color: #ccc;'>Complete all 🏅 League Games to unlock ⚔️ Playoffs.</p>
             </div>
             """,
             unsafe_allow_html=True,
         )
-        playoff_results = pd.DataFrame()  # Assign an empty DataFrame as a fallback
+        return
+
+    # Handle playoff_results safely
+    if league_complete and ("playoff_results" not in st.session_state or st.session_state.playoff_results.empty):
+        playoff_results = pd.DataFrame()  # Placeholder for playoff results
+
+        # Add safeguard: "Generate Playoffs Bracket" button
+        if "generate_playoffs_clicked" not in st.session_state:
+            st.session_state["generate_playoffs_clicked"] = False
+
+        if not st.session_state["generate_playoffs_clicked"]:
+            # Show button to generate playoffs
+            st.markdown(
+                """
+                <div style='text-align: center; margin-top: 50px;'>
+                    <h3 style='margin-bottom: 10px; color: #808080;'>🔓 Unlocked</h3>
+                    <p style='font-size: 14px; color: #ccc;'>🏅 League Games Completed! Ready to start the ⚔️ Playoffs.</p>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+            if st.button("🚀 Generate Playoffs Bracket", key="generate_playoffs_button", use_container_width=True):
+                st.session_state["generate_playoffs_clicked"] = True
+                st.rerun()  # Refresh the app to proceed with generation
+
+        else:
+            # Generate playoff bracket if league is complete and button was clicked
+            try:
+                team_to_player = {team: player for player, team in teams.items()}
+
+                league_match_history = st.session_state.results.dropna(subset=["Home Goals", "Away Goals"]).copy()
+                league_standings =  st.session_state.standings
+
+                # Map players to the league_standings based on the Team column
+                league_standings["Player"] = league_standings["Team"].map(team_to_player)
+
+                # Rearrange columns to include Player
+                league_standings = league_standings[["Rank", "Player", "Team", "Points", "Wins", "Draws", "Losses", "Goals", "xG"]]
+                league_standings["xG"] = league_standings["xG"].round(2)
+
+                # Determine the starting Game ID for playoffs
+                last_game_id = (
+                    st.session_state.results["Game #"]
+                    .str.extract(r'(\d+)')[0]  # Extract the numeric part
+                    .astype(float)  # Convert to float for handling NaNs
+                    .max()
+                )
+                last_game_id = int(last_game_id) if not pd.isna(last_game_id) else 0
+
+                # Generate the playoff bracket
+                playoff_bracket = generate_playoffs_bracket(
+                    tournament_details=tournament_details,
+                    standings=st.session_state.standings,
+                    last_game_id=last_game_id,
+                    debug=True  # Enable debugging
+                )
+                st.session_state["playoff_results"] = pd.DataFrame(playoff_bracket)
+                st.session_state["playoff_results"][["Home Goals", "Away Goals", "Home xG", "Away xG"]] = np.nan
+                st.success("Playoffs bracket generated successfully!", icon="✅")
+                st.rerun()
+            except ValueError as e:
+                st.error(f"Failed to generate playoffs: {e}", icon="❌")
+                return
+            except Exception as e:
+                st.error(f"An unexpected error occurred: {e}", icon="❌")
+                return
     else:
-        playoff_results = st.session_state.playoff_results.copy()
-
-
-    # Determine the starting Game ID for playoffs
-    if "Game #" in st.session_state.results.columns and not st.session_state.results["Game #"].isnull().all():
-        last_game_id = (
-            st.session_state.results["Game #"]
-            .str.extract(r'(\d+)')[0]  # Extract the numeric part
-            .astype(float)  # Convert to float for handling NaNs
-            .max()  # Get the max value
-        )
-        last_game_id = int(last_game_id) if not pd.isna(last_game_id) else 0
-    else:
-        last_game_id = 0  # Default value if no games exist in round-robin
-
-
-    #######################################
-
-    # Filter for completed round-robin games
-    games_played = st.session_state.results.dropna(subset=["Home Goals", "Away Goals"]).copy()
-
-    # Recalculate standings dynamically based on completed games
-    st.session_state.standings = initialize_standings(st.session_state.players, st.session_state.teams)
-    st.session_state.standings = update_standings(st.session_state.standings, games_played)
-
-    # Count unique games played for each player (round-robin)
-    games_played_count = (
-        games_played[["Game #", "Home", "Away"]]
-        .melt(id_vars=["Game #"], value_vars=["Home", "Away"], var_name="Role", value_name="Player")
-        .groupby("Player")
-        .agg(Played=("Game #", "nunique"))
-        .reset_index()
-    )
-
-    # Calculate Wins, Losses, and Draws dynamically for round-robin
-    outcomes = calculate_outcomes(games_played)
-
-    # Merge games played count and outcomes into standings
-    standings = st.session_state.standings.merge(games_played_count, on="Player", how="left").fillna({"Played": 0})
-    standings = standings.merge(outcomes, on="Player", how="left")
-
-    # Add Playoff Games Played if playoff results exist
-    if not playoff_results.empty:
-        # Filter completed playoff games
-        playoff_games_played = playoff_results.dropna(subset=["Home Goals", "Away Goals"]).copy()
-
-        # Count unique playoff games played for each player
-        playoff_games_played_count = (
-            playoff_games_played[["Game #", "Home", "Away"]]
-            .melt(id_vars=["Game #"], value_vars=["Home", "Away"], var_name="Role", value_name="Player")
-            .groupby("Player")
-            .agg(Playoff_Played=("Game #", "nunique"))
-            .reset_index()
-        )
-
-        # Merge playoff games played count into standings
-        standings = standings.merge(playoff_games_played_count, on="Player", how="left").fillna({"Playoff_Played": 0})
-    else:
-        # Add a default Playoff_Played column if no playoff games are available
-        standings["Playoff_Played"] = 0
-
-    # Add team names to standings
-    standings["Team"] = standings["Player"].map(st.session_state.teams)
-
-    # Round xG values in standings
-    standings["xG"] = standings["xG"].round(2)
-
-    # Sort standings and apply rankings
-    standings = sort_standings(standings, get_session_state("tiebreakers", []))
-
-    # Reorder: Player, Team, Points, Played, Playoff_Played, Wins, Draws, Goals, xG
-    standings = standings[["Player", "Team", "Points", "Played", "Wins", "Draws", "Goals", "xG"]]
-
-    ########################################
-
-    # Check if all matches in the round-robin are complete
-    league_complete = st.session_state.results.dropna(subset=["Home Goals", "Away Goals"]).shape[0] == st.session_state.results.shape[0]
-    # Reorder: Player, Team, Points, Played, Playoff_Played, Wins, Draws, Goals, xG
-    standings = standings[["Player", "Team", "Points", "Played", "Wins", "Draws", "Goals", "xG"]]
-    ranked_standings = standings.sort_values(by=["Points", "Goals", "xG", "Wins"], ascending=False).reset_index(drop=True)
-
-    if not league_complete:
-        #st.warning("Playoffs are locked until all round-robin matches are completed.",icon="🔒")
-        print("Playoffs are locked until all League matches are completed.")
-
-    else:
-        # Generate or fetch playoff results
-        if "playoff_results" not in st.session_state or st.session_state["playoff_results"].empty:
-            # Generate playoff bracket and initialize result columns
-            playoff_bracket = generate_playoffs_bracket(ranked_standings, last_game_id)
-
-            #  Convert to DataFrame if necessary
-            if isinstance(playoff_bracket, list):
-                playoff_bracket = pd.DataFrame(playoff_bracket)
-
-            # Ensure the "Match" column is added if missing
-            if "Match" not in playoff_bracket.columns:
-                playoff_bracket["Match"] = [f"WC{i+1}" for i in range(len(playoff_bracket))]  # Example placeholder values
-
-            st.session_state.playoff_results = pd.DataFrame(playoff_bracket)
-            st.session_state.playoff_results[["Home Goals", "Away Goals", "Home xG", "Away xG"]] = np.nan
-
+        
         # Copy playoff results for processing
         playoff_results = st.session_state.playoff_results.copy()
-        
+
         # TODO: Display the playoff results for debugging
         # st.subheader("Playoff Bracket")
         #st.dataframe(playoff_bracket)
@@ -190,8 +172,8 @@ def render():
             st.session_state.playoff_results = playoff_results.copy()
 
         # Add team names and status to playoff results
-        playoff_results["Home Team"] = playoff_results["Home"].map(st.session_state.teams)
-        playoff_results["Away Team"] = playoff_results["Away"].map(st.session_state.teams)
+        playoff_results["Home Team"] = playoff_results["Home"].map(teams)
+        playoff_results["Away Team"] = playoff_results["Away"].map(teams)
         playoff_results["Status"] = playoff_results["Game #"].apply(
             lambda game_id: "✅" if not pd.isna(
                 playoff_results.loc[playoff_results["Game #"] == game_id, "Home Goals"]
@@ -227,11 +209,9 @@ def render():
             hide_index=True,
         )
 
-        # Determine the starting Game ID for playoffs
-        all_round_robin_complete = st.session_state.results.dropna(subset=["Home Goals", "Away Goals"]).shape[0] == st.session_state.results.shape[0]
 
         # Allow updating results for playoff games only if playoffs are not locked
-        if all_round_robin_complete and not playoff_results.empty:
+        if league_complete and not playoff_results.empty:
             st.markdown("---")
             st.markdown(
                 """
@@ -259,8 +239,13 @@ def render():
                 if selected_game:
                     # Get the match row for the selected game
                     match_row = playoff_results[playoff_results["Game #"] == selected_game].iloc[0]
+                    home_player = match_row["Home"]
+                    away_player = match_row["Away"]
                     home_team = match_row["Home Team"]
                     away_team = match_row["Away Team"]
+                    round_number = match_row["Round"]
+                    match_type = match_row["Match"]
+                    console = match_row["Console"]
                     home_team_full = (
                         f"""{match_row.get("Home Team", "Unknown Team")} ({match_row.get("Home", "Unknown Player")})"""
                     )
@@ -285,10 +270,10 @@ def render():
                                 <span style="margin-right: 8px;">🎮</span> <strong>Selected Game #:&nbsp;</strong> {selected_game}
                             </div>
                             <div style="display: flex; align-items: center; margin-bottom: 10px;">
-                                <span style="margin-right: 8px;">🆚</span> <strong>Match Type:&nbsp;</strong> {match_row["Match"]}
+                                <span style="margin-right: 8px;">🆚</span> <strong>Match Type:&nbsp;</strong> {match_type}
                             </div>
                             <div style="display: flex; align-items: center; margin-bottom: 10px;">
-                                <span style="margin-right: 8px;">🕹️</span> <strong>Console:&nbsp;</strong> {match_row["Console"]}
+                                <span style="margin-right: 8px;">🕹️</span> <strong>Console:&nbsp;</strong> {console}
                             </div>
                             <div style="display: flex; align-items: center; margin-bottom: 10px;">
                                 <span style="margin-right: 8px;">🏠</span> <strong>Home Team:&nbsp;</strong> {home_team_full}
@@ -301,52 +286,86 @@ def render():
                         unsafe_allow_html=True,
                     )
 
-                    # Compact inputs for match results
+                # Create a form for updating playoff results
+                with st.form(key="update_playoff_form", clear_on_submit=False):
                     col1, col2 = st.columns(2)
                     with col1:
                         home_goals = st.number_input(
-                            f"Goals for {home_team}", min_value=0, step=1, key=f"home_goals_{selected_game}"
+                            f"Goals for {home_team}",
+                            min_value=0,
+                            step=1,
+                            key=f"home_goals_{selected_game}",
+                        )
+                        home_xg = st.number_input(
+                            f"xG for {home_team}",
+                            min_value=0.0,
+                            step=0.1,
+                            key=f"home_xg_{selected_game}",
                         )
                     with col2:
-                        home_xg = st.number_input(
-                            f"xG for {home_team}", min_value=0.0, step=0.1, key=f"home_xg_{selected_game}"
-                        )
-
-                    col3, col4 = st.columns(2)
-                    with col3:
                         away_goals = st.number_input(
-                            f"Goals for {away_team}", min_value=0, step=1, key=f"away_goals_{selected_game}"
+                            f"Goals for {away_team}",
+                            min_value=0,
+                            step=1,
+                            key=f"away_goals_{selected_game}",
                         )
-                    with col4:
                         away_xg = st.number_input(
-                            f"xG for {away_team}", min_value=0.0, step=0.1, key=f"away_xg_{selected_game}"
+                            f"xG for {away_team}",
+                            min_value=0.0,
+                            step=0.1,
+                            key=f"away_xg_{selected_game}",
                         )
 
-                    # Button to update match results
-                    if st.button("✏️ Update Playoff Match Results", key=f"update_results_{selected_game}", use_container_width=True):
-                        # Locate the row to update in the DataFrame
-                        idx = st.session_state.playoff_results[
-                            st.session_state.playoff_results["Game #"] == selected_game
-                        ].index[0]
+                    # Submit button for the form
+                    submitted = st.form_submit_button("✏️ Update Playoff Match Results", use_container_width=True)
 
-                        # Update the DataFrame with new values
-                        st.session_state.playoff_results.at[idx, "Home Goals"] = home_goals
-                        st.session_state.playoff_results.at[idx, "Away Goals"] = away_goals
-                        st.session_state.playoff_results.at[idx, "Home xG"] = home_xg
-                        st.session_state.playoff_results.at[idx, "Away xG"] = away_xg
+                    if submitted:
+                        # Construct a new result record
+                        new_result = {
+                            "Game #": selected_game,
+                            "Round": int(round_number),
+                            "Home": home_player,
+                            "Away": away_player,
+                            "Console": console,
+                            "Match": match_type,
+                            "Home Team": home_team,
+                            "Away Team": away_team,
+                            "Played": 1,
+                            "Home Goals": home_goals,
+                            "Away Goals": away_goals,
+                            "Home xG": home_xg,
+                            "Away xG": away_xg,
+                        }
 
-                        # Update the status column
-                        st.session_state.playoff_results["Status"] = st.session_state.playoff_results["Game #"].apply(
-                            lambda game_id: "✅"
-                            if not pd.isna(
-                                st.session_state.playoff_results.loc[
-                                    st.session_state.playoff_results["Game #"] == game_id, "Home Goals"
-                                ]
-                            ).all()
-                            else ""
-                        )
+                        # Update playoff results
+                        updated_results = update_playoff_results(playoff_results, new_result)
 
-                        st.success(f"Results updated for {selected_game}", icon="✅")
+                        # Reflect changes in session state
+                        st.session_state["playoff_results"] = updated_results
+
+                        st.success(f"Result updated for Playoff {selected_game}.", icon="✅")
+                    
+            # RESET PLAYOFFS BUTTON
+            st.markdown("---")  
+            st.markdown(
+                """
+                <div style='text-align: center;'>
+                    <strong>Need a playoff mulligan?</strong><br>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+            # Reset Playoff Bracket
+            if st.button("🔄 Reset Playoffs", use_container_width=True):
+                if "playoff_results" in st.session_state:
+                    st.session_state.pop("playoff_results", None) 
+                if "generate_playoffs_clicked" in st.session_state:
+                    st.session_state.pop("generate_playoffs_clicked", None)
+                if "generate_finals_clicked" in st.session_state:
+                    st.session_state.pop("generate_finals_clicked", None)
+
+
+                st.success("Playoff results cache has been cleared!", icon="✅")
+                st.rerun()
         else:
             st.warning("Playoffs are locked. Update Match Results will be available after playoffs are unlocked.", icon="🔒")
-

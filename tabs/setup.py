@@ -2,7 +2,11 @@ import streamlit as st
 import pandas as pd
 from utils.general_utils import generate_unique_id
 from utils.data_utils import firestore_get_leagues, create_league_mapping
-from utils.tournament_utils import estimate_tournament_duration
+from utils.tournament_utils import (
+    estimate_league_duration, 
+    estimate_playoff_duration, 
+    estimate_tournament_duration
+    )
 
 
 def update_current_step():
@@ -10,6 +14,7 @@ def update_current_step():
     steps = [
         st.session_state["create_complete"],
         st.session_state["setup_complete"],
+        st.session_state["games_complete"],
         st.session_state["players_selected"],
         st.session_state["finish_generated"],
     ]
@@ -52,6 +57,7 @@ def render_start_over_button(tab):
             "team_selection",
             "create_complete",
             "setup_complete",
+            "games_complete",
             "finish_generated",
             "current_step",
             "active_tab",
@@ -64,6 +70,7 @@ def render_start_over_button(tab):
         st.session_state["tournaments"] = {}
         st.session_state["create_complete"] = False
         st.session_state["setup_complete"] = False
+        st.session_state["games_complete"] = False
         st.session_state["players_selected"] = False
         st.session_state["finish_generated"] = False
         st.session_state["current_step"] = 0
@@ -80,6 +87,8 @@ def render():
         st.session_state["create_complete"] = False
     if "setup_complete" not in st.session_state:
         st.session_state["setup_complete"] = False
+    if "games_complete" not in st.session_state:
+        st.session_state["games_complete"] = False
     if "players_selected" not in st.session_state:
         st.session_state["players_selected"] = False
     if "finish_generated" not in st.session_state:
@@ -96,7 +105,7 @@ def render():
         st.session_state["half_duration"] = 5  # Default value
 
     # Define progress steps and calculate progress
-    progress_steps = ["Create", "Setup", "Players", "Finish"]
+    progress_steps = ["Create", "Setup", "Games", "Players", "Finish"]
     update_current_step()
     progress_percentage = int(
         ((st.session_state["current_step"] + 1) / len(progress_steps)) * 100
@@ -143,8 +152,8 @@ def render():
     )
 
     # Tabs for Setup
-    tab_create, tab_setup, tab_players, tab_finish = st.tabs(
-        ["🛠️ 01 Create", "⚙️ 02 Setup", "👤 03 Players", "🎉 04 Finish"]
+    tab_create, tab_setup, tab_games, tab_players, tab_finish = st.tabs(
+        ["🛠️ 01 Create", "⚙️ 02 Format", "🕹️ 03 Games",  "👤 04 Players",  "🎉 05 Finish"]
     )
 
     # Create Tab
@@ -166,7 +175,7 @@ def render():
                 """
                 <div style='text-align: center; margin-top: 50px;'>
                     <h3 style='margin-bottom: 10px; color: #808080;'>🔒 Locked</h3>
-                    <p style='font-size: 14px; color: #ccc;'>You need to join a league to create a tournament.</p>
+                    <p style='font-size: 14px; color: #ccc;'>You need to join a 🏟️ League to create a tournament.</p>
                 </div>
                 """,
                 unsafe_allow_html=True,
@@ -284,7 +293,7 @@ def render():
                 """
                 <div style='text-align: center; margin-top: 50px;'>
                     <h3 style='margin-bottom: 10px; color: #808080;'>🔒 Locked</h3>
-                    <p style='font-size: 14px; color: #ccc;'>Complete the Create step first to unlock this tab.</p>
+                    <p style='font-size: 14px; color: #ccc;'>Complete 🛠️ 01 Create to unlock this tab.</p>
                 </div>
                 """,
                 unsafe_allow_html=True,
@@ -308,8 +317,8 @@ def render():
             with setup_col1:
                 league_format = st.selectbox(
                     "Select League Format",
-                    ["Play-Everyone"],
-                    help="Defines how league games are scheduled. 'Play-Everyone' means each team plays all others once.",
+                    ["League"],
+                    help="Defines the format for the tournament. 'Group' & 'Knockouts' coming soon...",
                     key="setup_league_format"
                 )
 
@@ -330,7 +339,7 @@ def render():
                 num_players = st.slider(
                     "Number of Players",
                     min_value=6,
-                    max_value=12,
+                    max_value=20,
                     value=6,
                     key="setup_num_players",
                     help="Choose the total number of players participating in the tournament.",
@@ -344,7 +353,7 @@ def render():
                     max_value=4,
                     value=2,
                     key="setup_num_consoles",
-                    help="Specify the number of consoles available for the tournament.",
+                    help="Specify the number of in-person consoles available for the tournament.",
                 )
 
             # Half Duration
@@ -359,8 +368,8 @@ def render():
 
             # Proceed Button
             proceed_button = st.button(
-                "🚀 Proceed to Player Setup",
-                key="proceed_to_players",
+                "🚀 Proceed to Games Setup",
+                key="proceed_to_games",
                 use_container_width=True,
             )
 
@@ -385,6 +394,150 @@ def render():
             render_start_over_button(tab="setup_general")
 
 
+    # Games Tab
+    with tab_games:
+
+        # Header Section
+        st.markdown(
+            """
+            <div style='text-align: center; margin-bottom: 20px;'>
+                <h3 style='margin-bottom: 5px;'>🕹️ Game Calculations</h3>
+                <p style='font-size: 14px; color: #808080;'>Choose how many games each player will play.</p>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+        if not st.session_state.get("setup_complete"):
+            st.markdown(
+                """
+                <div style='text-align: center; margin-top: 50px;'>
+                    <h3 style='margin-bottom: 10px; color: #808080;'>🔒 Locked</h3>
+                    <p style='font-size: 14px; color: #ccc;'>Complete ⚙️ 02 Setup to unlock this tab.</p>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+        else:
+            # Pre-configured inputs
+            num_players = st.session_state.get("num_players", 8)
+            num_consoles = st.session_state.get("num_consoles", 2)
+            half_duration = st.session_state.get("half_duration", 6)
+            playoff_format = st.session_state.get("playoff_format", "Single-Elimination")
+            league_format = st.session_state["league_format"]  # Currently only "League" is supported
+            target_duration = 200  # Target ~3 hours in minutes
+
+            # Calculate valid and recommended games
+            max_games_per_player = num_players - 1
+            viable_games = [
+                games
+                for games in range(1, max_games_per_player + 1)
+                if (num_players * games) % 2 == 0  # Ensure all players can play the same number of games
+            ]
+
+            # Determine durations and recommended option
+            durations = {
+                games: estimate_tournament_duration(
+                    num_players=num_players,
+                    num_consoles=num_consoles,
+                    half_duration=half_duration,
+                    games_per_player=games,
+                    league_format=league_format,
+                    playoff_format=playoff_format,
+                )
+                for games in viable_games
+            }
+            recommended_games = min(durations, key=lambda x: abs(durations[x]["total_duration"] - target_duration))
+            recommended_duration = durations[recommended_games]["total_duration"]
+
+            # Card for Valid Options and Recommended Setup
+            st.markdown(
+                f"""
+                <div style="
+                    background-color: #1e1e1e; 
+                    border-radius: 8px; 
+                    box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.2); 
+                    padding: 15px; 
+                    margin-bottom: 20px; 
+                    color: #f5f5f5; 
+                    text-align: center;
+                ">
+                    <p style="font-size: 14px; color: #fff; margin: 5px 0;">
+                        👍 Valid options: {', '.join(map(str, viable_games))}
+                    </p>
+                    <p style="font-size: 16px; color: #4caf50; margin: 5px 0;">
+                        ✨ Recommended: {recommended_games} games per player
+                    </p>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+
+            # Slider for selecting games per player
+            selected_games_per_player = st.slider(
+                label="Select Games Per Player",
+                min_value=min(viable_games),
+                max_value=max(viable_games),
+                value=recommended_games,
+                step=1,
+                key="games_per_player_slider",  # Use a different key for the slider
+                help="Slide to select the number of games each player will play.",
+            )
+
+            # Validate selected games per player
+            if selected_games_per_player not in viable_games:
+                st.error("🚫 Invalid selection. Please choose a valid option from the slider.")
+            else:
+                # Tournament Breakdown Section
+                tournament_details = durations[selected_games_per_player]
+                league_details = tournament_details["league_details"]
+                playoff_details = tournament_details["playoff_details"]
+                additional_time = tournament_details["additional_time"]
+
+                with st.expander(label="📊 Game Calculations Breakdown", expanded=False):
+                    # Organized and styled breakdown
+                    st.markdown(
+                        f"""
+                        <div style='font-size: 14px; line-height: 1.6; padding: 10px; background-color: #1e1e1e; border-radius: 8px;'>
+                            <b>🏆 Total League Games:</b> {league_details["total_league_games"]}<br>
+                            <b>⏳ League Rounds:</b> {league_details["league_rounds"]}<br>
+                            <b>🏅 League Duration:</b> {league_details["league_duration"] // 60} hours and {league_details["league_duration"] % 60} minutes<br>
+                            <b>⚔️ Playoff Duration:</b> {playoff_details["playoff_duration"] // 60} hours and {playoff_details["playoff_duration"] % 60} minutes<br>
+                            <b>⏱️ Additional Time:</b> {additional_time} minutes<br>
+                            <b>📅 Total Tournament Duration:</b> {tournament_details["total_duration"] // 60} hours and {tournament_details["total_duration"] % 60} minutes<br>
+                        </div>
+                        """,
+                        unsafe_allow_html=True,
+                    )
+
+                # Recommendation Feedback
+                if selected_games_per_player == recommended_games:
+                    st.info(
+                        f"✨ Recommended setup selected: {selected_games_per_player} games per player (~{tournament_details['total_duration'] // 60} hours and {tournament_details['total_duration'] % 60} minutes)."
+                    )
+                else:
+                    st.info(
+                        f"👍 Valid setup: {selected_games_per_player} games per player (~{tournament_details['total_duration'] // 60} hours and {tournament_details['total_duration'] % 60} minutes)."
+                    )
+
+            # Proceed Button
+            proceed_button = st.button(
+                "🚀 Proceed to Players",
+                key="proceed_to_players",
+                use_container_width=True,
+            )
+
+            if proceed_button:
+                if selected_games_per_player in viable_games:
+                    st.session_state["games_complete"] = True
+                    st.session_state["games_per_player"] = selected_games_per_player
+                    st.success("Games Setup completed! Proceed to the next step.", icon="✅")
+                else:
+                    st.error("Invalid selection. Please fix the input before proceeding.", icon="❌")
+
+            # Add Start Over Button
+            render_start_over_button(tab="setup_games")
+
 
     # Player Selection
     with tab_players:
@@ -398,97 +551,92 @@ def render():
             unsafe_allow_html=True,
         )
 
-        if not st.session_state.get("setup_complete", False):
+        if not st.session_state.get("games_complete", False):
             st.markdown(
                 """
                 <div style='text-align: center; margin-top: 50px;'>
                     <h3 style='margin-bottom: 10px; color: #808080;'>🔒 Locked</h3>
-                    <p style='font-size: 14px; color: #ccc;'>Complete the General Setup step first to unlock this tab.</p>
+                    <p style='font-size: 14px; color: #ccc;'>Complete 🕹️ 03 Games to unlock this tab.</p>
                 </div>
                 """,
                 unsafe_allow_html=True,
             )
-            return
+        else:
 
-        # Forcefully reload player data if required
-        if "players" not in st.session_state or st.session_state["players"] is None or not st.session_state["players"]:
-            try:
-                # Ensure league_id is selected
-                selected_league_id = st.session_state.get("league_id")
-                st.write(f"Selected League ID: {selected_league_id}")  # Debugging step
-
-                if not selected_league_id:
-                    raise ValueError("No league selected. Please select a league to proceed.")
-
-                # Fetch league data
-                league_data = league_catalog.get(selected_league_id, {})
-
-                # Extract members
-                members = league_data.get("members", {})  # e.g., {"user_id": "username"}
-
-                if not members:
-                    st.warning("No members found for the selected league. Please add players.")
-                    st.session_state["players"] = []  # Ensure players is initialized to an empty list
-                else:
-                    # Format player data with fallback for missing usernames
-                    players_data = [
-                        {"id": user_id, "username": username or f"Player_{user_id}", "source": "league"}
-                        for user_id, username in members.items()
-                    ]
-                    st.session_state["players"] = players_data
-                    st.write("Players data loaded successfully!")  # Debugging success message
-            except Exception as e:
+            # Initialize players list in session state
+            if "players" not in st.session_state:
                 st.session_state["players"] = []
-                st.error(f"Failed to load player data: {e}", icon="❌")
-                return
 
-        # Handle case where player data is missing
-        if not st.session_state.get("players", []):
-            st.error("No players available. Please add players to the league.", icon="❌")
-            return
+            if not st.session_state["players"]:
+                try:
+                    # Ensure league_id is selected
+                    selected_league_id = st.session_state.get("league_id")
 
-        # Process player data
-        players_data = pd.DataFrame(st.session_state["players"])
+                    if not selected_league_id:
+                        raise ValueError("No league selected. Please select a league to proceed.")
 
-        # Ensure essential columns exist
-        for column, default_value in [("id", None), ("source", "league")]:
-            if column not in players_data.columns:
-                players_data[column] = default_value
+                    # Fetch league data
+                    league_data = league_catalog.get(selected_league_id, {})
+                    members = league_data.get("members", {})
 
-        # Generate player usernames
-        player_names = players_data["username"].tolist()
-        st.session_state["player_names"] = player_names
+                    if not members:
+                        st.warning("No members found for the selected league. Please add players.")
+                    else:
+                        # Populate player data with fallbacks
+                        players_data = [
+                            {"id": user_id, "username": username or f"Player_{user_id}", "source": "league"}
+                            for user_id, username in members.items()
+                        ]
+                        st.session_state["players"] = players_data
 
-        # Player Multiselect
-        selected_players = st.multiselect(
-            "Select Players",
-            options=player_names,
-            default=player_names[: st.session_state.get("num_players", len(player_names))],
-        )
+                except Exception as e:
+                    st.error(f"Failed to load player data: {e}", icon="❌")
+                    return
 
-        # Validate selected players
-        num_players_required = st.session_state.get("num_players", len(player_names))
-        if len(selected_players) != num_players_required:
-            st.error(f"Please select exactly {num_players_required} players.", icon="❌")
-            return
+            # Convert session state players to DataFrame
+            players_data = pd.DataFrame(st.session_state["players"])
 
-        # Assign teams dynamically
-        team_selection = {
-            player: st.text_input(f"Team for {player}", value=f"Team {player.split()[0]}")
-            for player in selected_players
-        }
+            # Ensure essential columns exist
+            for column, default_value in [("id", None), ("username", "Unknown"), ("source", "league")]:
+                if column not in players_data.columns:
+                    players_data[column] = default_value
 
-        # Proceed Button with Logic
-        if st.button("🚀 Proceed to Finish", key="proceed_to_finish", use_container_width=True):
-            st.session_state.update({
-                "players_selected": True,
-                "selected_players": selected_players,
-                "team_selection": team_selection,
-            })
-            st.success("Player Setup completed! Proceed to the Finish.", icon="✅")
+            # Generate player usernames
+            player_names = players_data["username"].tolist()
+            st.session_state["player_names"] = player_names
 
-        # Add Start Over Button
-        render_start_over_button(tab="setup_players")
+            # Player Multiselect
+            num_players_required = st.session_state.get("num_players", len(player_names))
+            selected_players = st.multiselect(
+                "Select Players",
+                options=player_names,
+                default=player_names[:num_players_required],
+            )
+
+            # Validate selected players
+            if not selected_players:
+                st.error("Please select at least one player.", icon="❌")
+            elif len(selected_players) != num_players_required:
+                st.error(f"Please select exactly {num_players_required} players.", icon="❌")
+            else:
+                # Assign teams dynamically
+                team_selection = {
+                    player: st.text_input(f"Team for {player}", value=f"Team {player.split()[0]}")
+                    for player in selected_players
+                }
+
+                # Proceed Button with Logic
+                if st.button("🚀 Proceed to Finish", key="proceed_to_finish", use_container_width=True):
+                    st.session_state.update({
+                        "players_selected": True,
+                        "selected_players": selected_players,
+                        "team_selection": team_selection,
+                    })
+                    st.success("Player Setup completed! Proceed to the Finish.", icon="✅")
+
+            # Add Start Over Button
+            render_start_over_button(tab="setup_players")
+
 
     # Finish Tab
     with tab_finish:
@@ -501,25 +649,46 @@ def render():
             """,
             unsafe_allow_html=True,
         )
-        if not st.session_state["players_selected"]:
+
+        if not st.session_state.get("players_selected", False):
             st.markdown(
                 """
                 <div style='text-align: center; margin-top: 50px;'>
                     <h3 style='margin-bottom: 10px; color: #808080;'>🔒 Locked</h3>
-                    <p style='font-size: 14px; color: #ccc;'>Complete the Player Selection step first to unlock this tab.</p>
+                    <p style='font-size: 14px; color: #ccc;'>Complete 👤 04 Players to unlock this tab.</p>
                 </div>
                 """,
                 unsafe_allow_html=True,
             )
         else:
-            # Estimate tournament duration
-            duration_breakdown = estimate_tournament_duration(
-                num_players=st.session_state["num_players"],
-                num_consoles=st.session_state["num_consoles"],
-                half_duration=st.session_state["half_duration"],
-                league_format=st.session_state["league_format"],
-                playoff_format=st.session_state["playoff_format"],
+            # Retrieve parameters from session state
+            games_per_player = st.session_state["games_per_player"]
+            num_players = st.session_state["num_players"]
+            num_consoles = st.session_state["num_consoles"]
+            half_duration = st.session_state["half_duration"]
+            playoff_format = st.session_state["playoff_format"]
+            league_format = "League"  # Only "League" supported for now
+
+            # Calculate tournament details using modularized functions
+            tournament_details = estimate_tournament_duration(
+                num_players=num_players,
+                num_consoles=num_consoles,
+                half_duration=half_duration,
+                games_per_player=games_per_player,
+                league_format=league_format,
+                playoff_format=playoff_format,
             )
+
+            league_details = tournament_details["league_details"]
+            playoff_details = tournament_details["playoff_details"]
+            additional_time = tournament_details["additional_time"]
+            total_duration = tournament_details["total_duration"]
+
+            # Convert durations to hours and minutes
+            league_duration_hm = f"{league_details['league_duration'] // 60} hours and {league_details['league_duration'] % 60} minutes"
+            playoff_duration_hm = f"{playoff_details['playoff_duration'] // 60} hours and {playoff_details['playoff_duration'] % 60} minutes"
+            total_duration_hm = f"{total_duration // 60} hours and {total_duration % 60} minutes"
+
             # Collapsible sections for details
             with st.expander("🏆 Tournament Details", expanded=True):
                 st.markdown(f"### 🏆 **{st.session_state['tournament_name']}**")
@@ -531,24 +700,23 @@ def render():
                 st.write(f"**🏅 League Format:** {st.session_state['league_format']}")
                 st.write(f"**↕️ League Tiebreaker Order:** {st.session_state['tiebreakers']}")
                 st.write(f"**⚔️ Playoff Format:** {st.session_state['playoff_format']}")
-                st.write(f"**👥 Players:** {st.session_state['num_players']}")
-                st.write(f"**🎮 Consoles:** {st.session_state['num_consoles']}")
-                st.write(f"**⏱️ Half Duration:** {st.session_state['half_duration']} minutes")
+                st.write(f"**👥 Players:** {num_players}")
+                st.write(f"**🎮 Consoles:** {num_consoles}")
+                st.write(f"**⏱️ Half Duration:** {half_duration} minutes")
+                st.write(f"**🕹️ Games Per Player:** {games_per_player}")
 
             with st.expander("⏳ Estimated Duration", expanded=False):
-                st.markdown(f"#### **⏳ ~Est: {duration_breakdown['total_hours']} hours & {duration_breakdown['total_minutes']} minutes**")
+                st.markdown(f"#### **⏳ ~ {total_duration_hm}**")
                 # League duration details
                 st.markdown("**🏅 League Games**")
-                st.write(f"- **Total Games:** {duration_breakdown['total_league_games']} across {duration_breakdown['total_league_rounds']} rounds")
-                st.write(f"- **Estimated Duration:** ~{duration_breakdown['total_league_duration']} minutes")
+                st.write(f"- **Total Games:** {league_details['total_league_games']} games, {league_details['league_rounds']} rounds")
+                st.write(f"- **Estimated Duration:** ~{league_duration_hm}")
                 # Playoff duration details
                 st.markdown("**⚔️ Playoff Games**")
-                st.write(f"- **Total Games:** {duration_breakdown['total_playoff_games']} across {duration_breakdown['total_playoff_rounds']} rounds")
-                st.write(f"- **Estimated Duration:** ~{duration_breakdown['total_playoff_duration']} minutes")
+                st.write(f"- **Estimated Duration:** ~{playoff_duration_hm}")
                 # Additional time
                 st.markdown("**⏱️ Additional Time**")
-                st.write(f"- **Team Management Time:** ~{duration_breakdown['team_management_time']} minutes")
-
+                st.write(f"- **Miscellaneous Time:** ~{additional_time} minutes")
 
             with st.expander("👤 Players & Teams", expanded=False):
                 st.markdown(f"### 👤**Player Teams**")
@@ -557,13 +725,14 @@ def render():
 
             # Save Tournament Setup Button
             save_button = st.button(
-                "💾 Save Tournament Setup", 
+                "💾 Save Tournament Setup",
                 key="save_tournament_setup",
                 use_container_width=True,
-                )
+            )
 
+            # Save Button Logic
             if save_button:
-                tournament_id = generate_unique_id(id_length = 12, id_type='uuid')
+                tournament_id = generate_unique_id(id_length=12, id_type="uuid")
                 st.session_state["tournaments"][tournament_id] = {
                     "tournament_name": st.session_state["tournament_name"],
                     "video_game": st.session_state["video_game"],
@@ -574,16 +743,21 @@ def render():
                     "tiebreakers": st.session_state["tiebreakers"],
                     "playoff_format": st.session_state["playoff_format"],
                     "tournament_type": st.session_state["tournament_type"],
-                    "num_players": st.session_state["num_players"],
-                    "num_consoles": st.session_state["num_consoles"],
+                    "num_players":  st.session_state["num_players"],
+                    "num_consoles":  st.session_state["num_consoles"],
                     "half_duration": st.session_state["half_duration"],
+                    "games_per_player": st.session_state["games_per_player"],
+                    "estimated_tournament_duration": total_duration_hm,
+                    "estimated_league_duration": league_duration_hm,
+                    "estimated_playoff_duration": playoff_duration_hm,
+                    "estimated_additional_duration": additional_time,
                     "selected_players": st.session_state["selected_players"],
                     "team_selection": st.session_state["team_selection"],
-                            }
+                }
                 st.session_state["selected_tournament_id"] = tournament_id
                 st.session_state["tournament_ready"] = True
-                st.success(f"Tournament setup saved with ID: {tournament_id}",icon="✅") 
+                st.success(f"Tournament setup saved with ID: {tournament_id}", icon="✅")
 
             # Add Start Over Button
-            render_start_over_button(tab='setup_finish')
+            render_start_over_button(tab="setup_finish")
 

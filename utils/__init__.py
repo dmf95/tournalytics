@@ -22,8 +22,16 @@ from .tournament_utils import (
     upsert_results,
     update_standings,
     calculate_outcomes,
-    calculate_tournament_duration,
+    estimate_league_duration,
+    estimate_playoff_duration,
+    estimate_tournament_duration,
     generate_playoffs_bracket,
     determine_winner,
+    validate_league_completion,
+    validate_playoffs_completion,
+    update_league_game_results,
+    update_playoff_results,
+    update_final_matches
+
 )
 from .viz_utils import plot_bracket, create_bracket_visualization

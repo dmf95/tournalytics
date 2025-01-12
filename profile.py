@@ -1,13 +1,11 @@
 import streamlit as st
 import firebase_admin
-from firebase_admin import firestore
 from utils.data_utils import firestore_get_leagues, create_league_mapping, firestore_get_user
 import time
 
 # Initialize Firebase app if not already initialized
 if not firebase_admin._apps:
     firebase_admin.initialize_app()
-
 
 def display_account_details(username, email, role, league_names):
     """
@@ -156,16 +154,17 @@ if st.session_state.get("authenticated", False):
 st.markdown("---")
 
 # Log Out Button
-if st.button("Log Out", use_container_width=True):
+if st.button("🚪 Log Out", use_container_width=True):
+    # Clear the entire session state
+    for key in list(st.session_state.keys()):
+        del st.session_state[key]
+
+    # Optionally set default states (if needed after clearing)
     st.session_state.update(
         {
-            "authenticated": False,
-            "username": None,
-            "role": None,
-            "email": None,
-            "league_id": None,
-            "league_mapping": None,
-            "league_names": None,
+            "authenticated": False,  # Ensure user is logged out
         }
     )
+
+    # Rerun the app to refresh the UI
     st.rerun()

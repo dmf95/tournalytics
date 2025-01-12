@@ -27,14 +27,18 @@ pages = {
 }
 
 # Authentication and Navigation
-if st.session_state["authenticated"]:
+if st.session_state.get("authenticated", False):
     # Display user info and logout option
-    st.sidebar.markdown(f"**Logged in as:** {st.session_state['username']} ({st.session_state['role']})")
+    st.sidebar.markdown(f"**Logged in as:** {st.session_state.get('username', 'Unknown')} ({st.session_state.get('role', 'Unknown')})")
     if st.sidebar.button("Log Out"):
-        # Reset session state and rerun the app
+        # Clear all session state variables
+        for key in list(st.session_state.keys()):
+            del st.session_state[key]
+        
+        # Optionally, reset specific defaults if needed
         st.session_state["authenticated"] = False
-        st.session_state["username"] = None
-        st.session_state["role"] = None
+        
+        # Rerun the app to reflect the changes
         st.rerun()
 
     # Define role-based navigation
@@ -49,7 +53,7 @@ if st.session_state["authenticated"]:
         },
         "user": {
             "Main": [pages["Home"]],
-            "Features": [pages["Tournaments"], pages["Profile"], pages["Stats"]],
+            "Features": [pages["Tournaments"], pages["Profile"], pages["Manage"], pages["Stats"]],
         },
     }
 

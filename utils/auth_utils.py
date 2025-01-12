@@ -151,6 +151,17 @@ def is_username_or_email_taken(username, email):
 def register_user(email, password, username, role="user", league_id=None):
     """
     Register a new user in Firebase Authentication and store metadata in Firestore.
+    Ensures the user is created in Firebase Auth and Firestore without duplicates.
+
+    Args:
+        email (str): User's email address.
+        password (str): User's chosen password.
+        username (str): User's chosen username.
+        role (str): User's role (default: "user").
+        league_id (str or None): Associated league ID (default: None).
+
+    Returns:
+        tuple: (bool, str) indicating success and a message.
     """
     # Check if username or email is already taken
     is_taken, message = is_username_or_email_taken(username, email)
@@ -175,7 +186,7 @@ def register_user(email, password, username, role="user", league_id=None):
             "email": email,
             "username": username,
             "role": role,
-            "league_id": league_id,
+            "league_id": league_id if league_id else [],  # Initialize with empty list if None
             "created_at": datetime.now(),
         }
         db.collection("users").document(user.uid).set(user_metadata)
@@ -184,6 +195,7 @@ def register_user(email, password, username, role="user", league_id=None):
     except Exception as e:
         print(f"Error registering user: {e}")
         return False, f"Error registering user: {e}"
+
 
 
 

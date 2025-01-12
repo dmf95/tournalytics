@@ -2,6 +2,7 @@ import streamlit as st
 from utils.auth_utils import authenticate_user, register_user
 import re
 from utils.data_utils import firestore_get_leagues, create_league_mapping
+from firebase_admin import auth
 
 #-1- Authentication needed: Signin page
 
@@ -67,16 +68,41 @@ if not st.session_state.get("authenticated", False):
             elif len(new_password) < 6:
                 st.error("Password must be at least 6 characters long.")
             else:
-                success, message = register_user(new_email, new_password, new_username, role="user", league_id=None)
+                # Call the register_user function to handle signup
+                success, message = register_user(
+                    email=new_email,
+                    password=new_password,
+                    username=new_username,
+                    role="user",  # Default role
+                    league_id=None,  # No leagues on signup
+                )
                 if success:
-                    st.success(f"Account created successfully for {new_username}. Please sign in.")
+                    # Log the user in immediately after account creation
+                    try:
+                        # Fetch user details
+                        user_record = auth.get_user_by_email(new_email)
+
+                        # Update session state with user details for auto-login
+                        st.session_state["authenticated"] = True
+                        st.session_state["username"] = new_username
+                        st.session_state["email"] = new_email
+                        st.session_state["user_id"] = user_record.uid  # Store the user's UID
+                        st.session_state["role"] = "user"  # Default role for new users
+
+                        # Success message
+                        st.success(f"Welcome, {new_username}! You have been logged in automatically.", icon="✅")
+                        st.rerun()  # Refresh the app to show authenticated content
+                    except Exception as e:
+                        st.error(f"Error during auto-login: {e}", icon="❌")
                 else:
                     st.error(message)
+
+
 
 # Authentication complete: Home page
 else:
     # Fetch league IDs and names if authenticated
-    league_ids = st.session_state["user_data"].get("league_id", [])
+    league_ids = st.session_state.get("user_data", {}).get("league_id", [])
     
     if league_ids:
         try:
@@ -200,10 +226,21 @@ else:
 
     # Log Out Button
     st.markdown("---")
-    if st.button("🔓 Log Out", use_container_width=True):
+
+    # Log Out Button
+    if st.button("🚪 Log Out", use_container_width=True):
+        # Clear the entire session state
+        for key in list(st.session_state.keys()):
+            del st.session_state[key]
+
+        # Optionally set default states (if needed after clearing)
         st.session_state.update(
-            {"authenticated": False, "username": None, "role": None, "email": None, "league_id": None}
+            {
+                "authenticated": False,  # Ensure user is logged out
+            }
         )
+
+        # Rerun the app to refresh the UI
         st.rerun()
 
 # Footer Section

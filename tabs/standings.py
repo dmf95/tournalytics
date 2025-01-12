@@ -5,7 +5,6 @@
 # main libraries
 import streamlit as st
 import pandas as pd
-import numpy as np
 # custom libraries
 from utils.tournament_utils import (
     initialize_standings,
@@ -37,17 +36,28 @@ def render():
     # Filter completed games
     games_played = st.session_state.results.dropna(subset=["Home Goals", "Away Goals"])
 
+    # Extract the selected tournament ID and details
+    tournament_details = st.session_state["tournaments"][st.session_state["selected_tournament_id"]]
+
+    # Extract necessary details
+    players = tournament_details["selected_players"]
+    teams = tournament_details["team_selection"]
+
     # Initialize standings and update based on results
-    standings = initialize_standings(get_session_state("players"), get_session_state("teams"))
+    standings = initialize_standings(players, teams)
     standings = update_standings(standings, games_played)
 
     # Calculate Wins, Losses, and Draws
-    outcomes = calculate_outcomes(games_played)
+    if not games_played.empty:
+        outcomes = calculate_outcomes(games_played, players)
+    else:
+        # Create an empty outcomes DataFrame with required columns if no games have been played
+        outcomes = pd.DataFrame({"Player": players, "Wins": 0, "Losses": 0, "Draws": 0})
 
     # Merge outcomes and count games played
     standings = (
         standings.merge(outcomes, on="Player", how="left")
-        .fillna({"Wins": 0, "Losses": 0, "Draws": 0})
+        .fillna({"Wins": 0, "Losses": 0, "Draws": 0})  # Ensure default values for empty outcomes
         .assign(Played=lambda df: df["Games_Played"] + df.get("Playoff_Played", 0))
     )
 
@@ -126,8 +136,7 @@ def render():
     st.session_state.standings = standings
 
 
-
-    # Display the Games Played Table (Round Robin)
+    # Display the Games Played Table (League)
     st.markdown(
         """
         <div style="text-align: center; margin-bottom: 0px;">
@@ -157,18 +166,29 @@ def render():
             """,
             unsafe_allow_html=True,
         )
-        # Extract relevant columns and map teams
-        teams_mapping = st.session_state.get("teams", {})
+        # Extract relevant columns, map teams, round xG, and rename columns
         playoff_games_played_summary = (
-            playoff_games_played[["Game #", "Match", "Home", "Away", "Home Goals", "Away Goals", "Home xG", "Away xG"]]
+            playoff_games[["Game #", "Match", "Home", "Away", "Home Goals", "Away Goals", "Home xG", "Away xG"]]
             .assign(
-                Home_Team=lambda df: df["Home"].map(teams_mapping),
-                Away_Team=lambda df: df["Away"].map(teams_mapping),
-                Home_xG=lambda df: df["Home xG"].round(2),
-                Away_xG=lambda df: df["Away xG"].round(2),
+                Home=lambda df: df["Home"].map(teams),  # Map teams to 'Home'
+                Away=lambda df: df["Away"].map(teams),  # Map teams to 'Away'
             )
-            .loc[:, ["Game #", "Match", "Home_Team", "Away_Team", "Home Goals", "Away Goals", "Home_xG", "Away_xG"]]
+            .rename(
+                columns={
+                    "Home": "Home Team",  # Rename 'Home' to 'Home Team'
+                    "Away": "Away Team",  # Rename 'Away' to 'Away Team'
+                }
+            )
+            .loc[:, [
+                "Game #", "Match", "Home Team", "Away Team", 
+                "Home Goals", "Away Goals", 
+                "Home xG", "Away xG"
+            ]]
         )
+
+        # Round xG values directly after selection
+        playoff_games_played_summary["Home xG"] = playoff_games_played_summary["Home xG"].round(2)
+        playoff_games_played_summary["Away xG"] = playoff_games_played_summary["Away xG"].round(2)
 
         # Adjust index for display
         playoff_games_played_summary.index = playoff_games_played_summary.index + 1

@@ -596,33 +596,37 @@ elif selected_tab == "Search Leagues":
 
     # Section: Leagues the User Belongs To
     with st.expander("🎮 Your Leagues", expanded=False):
-        user_league_data = {
-            league_id: league_data
-            for league_id, league_data in leagues.items()
-            if league_id in user_leagues
-        }
-
-        if user_league_data:
-            for league_id, league_data in user_league_data.items():
-                st.markdown(
-                    f"""
-                    <div style="
-                        border: 1px solid #444;
-                        border-radius: 8px;
-                        padding: 16px;
-                        margin-bottom: 16px;
-                        background-color: #222;
-                        color: #fff;
-                    ">
-                        <h4 style="margin: 0;">🏆 <strong>{league_data['league_name']}</strong></h4>
-                        <p style="margin: 8px 0;"><strong>League Type:</strong> {league_data['league_type'].capitalize()}</p>
-                        <p style="margin: 8px 0;"><strong>Members:</strong> {len(league_data.get('members', []))}</p>
-                    </div>
-                    """,
-                    unsafe_allow_html=True,
-                )
-        else:
+        if not leagues or not user_leagues:  # Handle empty `leagues` or `user_leagues`
             st.info("You are not currently a member of any leagues.")
+        else:
+            user_league_data = {
+                league_id: league_data
+                for league_id, league_data in leagues.items()
+                if league_id in user_leagues
+            }
+
+            if user_league_data:  # Check if `user_league_data` has entries
+                for league_id, league_data in user_league_data.items():
+                    st.markdown(
+                        f"""
+                        <div style="
+                            border: 1px solid #444;
+                            border-radius: 8px;
+                            padding: 16px;
+                            margin-bottom: 16px;
+                            background-color: #222;
+                            color: #fff;
+                        ">
+                            <h4 style="margin: 0;">🏆 <strong>{league_data['league_name']}</strong></h4>
+                            <p style="margin: 8px 0;"><strong>League Type:</strong> {league_data['league_type'].capitalize()}</p>
+                            <p style="margin: 8px 0;"><strong>Members:</strong> {len(league_data.get('members', []))}</p>
+                        </div>
+                        """,
+                        unsafe_allow_html=True,
+                    )
+            else:
+                st.info("You are not currently a member of any leagues.")
+
 
     st.markdown("---")
 
@@ -631,77 +635,85 @@ elif selected_tab == "Search Leagues":
         st.markdown(
             """
             <div style='text-align: center; margin-bottom: 10px;'>
-                <h4 style='margin-bottom: 0px;'>Find and Join Public Leagues</h4>
+                <h4 style='margin-bottom: 0px;'>➕ Join a Public League</h4>
             </div>
             """,
             unsafe_allow_html=True,
         )
 
-        # Enhanced Filtering Logic
-        public_leagues = {
-            league_id: league_data
-            for league_id, league_data in leagues.items()
-            if league_data.get("league_type", "").lower() == "public"  # Handle case sensitivity
-            and league_id not in user_leagues
-        }
+        # Ensure `user_leagues` is initialized as an empty list if it is None
+        user_leagues = user_leagues or []
 
-        if public_leagues:
-            selected_league_id = st.selectbox(
-                "Select a Public League to Join",
-                options=list(public_leagues.keys()),
-                format_func=lambda x: public_leagues[x]["league_name"],
-            )
+        # Check if `leagues` exists and is not empty
+        if not leagues:
+            st.info("No public leagues are available at the moment.")
+        else:
+            # Enhanced Filtering Logic
+            public_leagues = {
+                league_id: league_data
+                for league_id, league_data in leagues.items()
+                if league_data.get("league_type", "").lower() == "public"  # Handle case sensitivity
+                and league_id not in user_leagues
+            }
 
-            if selected_league_id:
-                league_data = public_leagues[selected_league_id]
-
-                # Display league details in a card
-                st.markdown(
-                    f"""
-                    <div style="
-                        border: 1px solid #444;
-                        border-radius: 8px;
-                        padding: 16px;
-                        margin-bottom: 16px;
-                        background-color: #222;
-                        color: #fff;
-                    ">
-                        <h4 style="margin: 0;">🏆 <strong>{league_data['league_name']}</strong></h4>
-                        <p style="margin: 8px 0;"><strong>League Type:</strong> {league_data['league_type'].capitalize()}</p>
-                        <p style="margin: 8px 0;"><strong>Members:</strong> {len(league_data.get('members', []))}</p>
-                    </div>
-                    """,
-                    unsafe_allow_html=True,
+            if public_leagues:
+                selected_league_id = st.selectbox(
+                    "Select a Public League to Join",
+                    options=list(public_leagues.keys()),
+                    format_func=lambda x: public_leagues[x]["league_name"],
                 )
 
-                # Join button
-                if st.button(f"Join {league_data['league_name']}", key=f"join_{selected_league_id}"):
-                    try:
-                        # Check if the user is already in the league
-                        if selected_league_id in user_leagues:
-                            st.info(f"You are already a member of {league_data['league_name']}.", icon="ℹ️")
-                            st.stop()
+                if selected_league_id:
+                    league_data = public_leagues[selected_league_id]
 
-                        # Add the league to the user's `league_id` list
-                        updated_user_leagues = user_leagues.copy()
-                        updated_user_leagues.append(selected_league_id)
-                        firestore_batch_update_users(
-                            {st.session_state.user_id: {"league_id": updated_user_leagues}}
-                        )
+                    # Display league details in a card
+                    st.markdown(
+                        f"""
+                        <div style="
+                            border: 1px solid #444;
+                            border-radius: 8px;
+                            padding: 16px;
+                            margin-bottom: 16px;
+                            background-color: #222;
+                            color: #fff;
+                        ">
+                            <h4 style="margin: 0;">🏆 <strong>{league_data['league_name']}</strong></h4>
+                            <p style="margin: 8px 0;"><strong>League Type:</strong> {league_data['league_type'].capitalize()}</p>
+                            <p style="margin: 8px 0;"><strong>Members:</strong> {len(league_data.get('members', []))}</p>
+                        </div>
+                        """,
+                        unsafe_allow_html=True,
+                    )
 
-                        # Add the user to the league's `members` list
-                        result = firestore_add_players_to_league(selected_league_id, [st.session_state.user_id])
+                    # Join button
+                    if st.button(f"Join {league_data['league_name']}", key=f"join_{selected_league_id}"):
+                        try:
+                            # Check if the user is already in the league
+                            if selected_league_id in user_leagues:
+                                st.info(f"You are already a member of {league_data['league_name']}.", icon="ℹ️")
+                                st.stop()
 
-                        if result["success"]:
-                            # Update session state and success message
-                            st.session_state["user_data"]["league_id"] = updated_user_leagues
-                            st.success(f"You have joined {league_data['league_name']}!", icon="✅")
-                        else:
-                            st.error(result["message"], icon="❌")
-                    except Exception as e:
-                        st.error(f"Error joining league: {e}", icon="❌")
-        else:
-            st.info("No public leagues available for you to join.")
+                            # Add the league to the user's `league_id` list
+                            updated_user_leagues = user_leagues.copy() if isinstance(user_leagues, list) else []
+                            updated_user_leagues.append(selected_league_id)
+
+                            firestore_batch_update_users(
+                                {st.session_state.user_id: {"league_id": updated_user_leagues}}
+                            )
+
+                            # Add the user to the league's `members` list
+                            result = firestore_add_players_to_league(selected_league_id, [st.session_state.user_id])
+
+                            if result["success"]:
+                                # Update session state and success message
+                                st.session_state["user_data"]["league_id"] = updated_user_leagues
+                                st.success(f"You have joined {league_data['league_name']}!", icon="✅")
+                            else:
+                                st.error(result["message"], icon="❌")
+                        except Exception as e:
+                            st.error(f"Error joining league: {e}", icon="❌")
+            else:
+                st.info("No public leagues available for you to join.", icon="ℹ️")
 
 else:
     st.warning("No leagues found.")

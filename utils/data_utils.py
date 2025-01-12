@@ -99,17 +99,42 @@ def firestore_update_league_admins(league_id, new_admins):
 
 def firestore_add_players_to_league(league_id, player_ids):
     """
-    Add multiple players to a league in Firestore.
+    Add multiple players to a league in Firestore, ensuring no duplicates.
+    
+    Args:
+        league_id (str): The ID of the league.
+        player_ids (list): A list of player IDs to add.
+
+    Returns:
+        dict: A success flag and a message.
     """
     try:
         league_ref = db.collection("leagues").document(league_id)
-        current_members = league_ref.get().to_dict().get("members", [])
+        league_data = league_ref.get().to_dict()
+
+        if not league_data:
+            return {"success": False, "message": f"League with ID {league_id} not found."}
+
+        # Ensure 'members' is treated as a list
+        current_members = league_data.get("members", [])
+        if not isinstance(current_members, list):
+            current_members = []
+
+        # Add new members and remove duplicates
         new_members = list(set(current_members + player_ids))
         league_ref.update({"members": new_members})
+
         return {"success": True, "message": "Players added successfully."}
     except Exception as e:
-        st.error(f"Error adding players to league: {e}")
-        return {"success": False, "message": str(e)}
+        return {"success": False, "message": f"Error adding players to league: {e}"}
+
+
+    except Exception as e:
+        # Log and return the error message
+        error_message = f"Error adding players to league: {e}"
+        st.error(error_message)
+        return {"success": False, "message": error_message}
+
 
 
 def firestore_remove_players_from_league(league_id, player_ids):

@@ -3,6 +3,7 @@ import random
 import streamlit as st
 import random
 import numpy as np
+import itertools
 
 # Helper Functions
 def validate_schedule(schedule):
@@ -29,53 +30,89 @@ def set_schedule(schedule):
     st.session_state["tournament_ready"] = True
 
 
-def generate_league_schedule(players, teams, num_consoles, league_format="Play-Everyone"):
+def generate_league_schedule(tournament_details, debug=False):
     """
-    Generate a league schedule considering consoles, minimizing concurrent games.
+    Generate a league schedule considering constraints such as games per player, consoles, fairness,
+    and diverse matchups.
 
     Args:
-        players (list): List of player names.
-        teams (dict): Mapping of players to their teams.
-        num_consoles (int): Number of consoles available.
-        league_format (str): Format of league games (e.g., "Play-Everyone").
+        tournament_details (dict): Dictionary containing all tournament configuration details.
+        debug (bool): If True, outputs debug information to the console/UI.
 
     Returns:
         list: A schedule of league games.
     """
-    # Validate league format
-    if league_format != "Play-Everyone":
-        raise ValueError(f"Unsupported league format: {league_format}")
+
+    # Validate tournament_details and extract necessary fields
+    required_keys = ["selected_players", "team_selection", "num_players", "num_consoles", "games_per_player"]
+    missing_keys = [key for key in required_keys if key not in tournament_details]
+    if missing_keys:
+        raise KeyError(f"Missing required keys in tournament_details: {missing_keys}")
+
+    # Extract necessary details
+    players = tournament_details["selected_players"]
+    teams = tournament_details["team_selection"]
+    num_players = tournament_details["num_players"]
+    num_consoles = tournament_details["num_consoles"]
+    games_per_player = tournament_details["games_per_player"]
+
+    # Debugging: Display tournament details
+    if debug:
+        st.write("### [DEBUG] Tournament Details")
+        st.write("Players:", players)
+        st.write("Teams:", teams)
+        st.write(f"Num Players: {num_players}, Num Consoles: {num_consoles}, Games Per Player: {games_per_player}")
 
     # Initialize variables
     schedule = []
-    num_players = len(players)
-    matchups = [(players[i], players[j]) for i in range(num_players) for j in range(i + 1, num_players)]
+    total_league_games = (num_players * games_per_player) // 2
+    matchups = list(itertools.combinations(players, 2))  # All unique matchups
     random.shuffle(matchups)  # Randomize matchups for diversity
 
+    # Initialize symmetric matchup count
+    matchup_count = {}
+    for home, away in matchups:
+        matchup_count[(home, away)] = 0
+        matchup_count[(away, home)] = 0
+
+    # Tracking variables
     home_away_count = {player: 0 for player in players}
+    player_game_count = {player: 0 for player in players}
     game_id = 1
     round_num = 1
 
     # Generate schedule
-    while matchups:
+    while len(schedule) < total_league_games:
+        if debug:
+            st.write(f"### [DEBUG] Starting Round {round_num}")
         games_in_round = []
         players_in_round = set()
         used_consoles = set()
 
-        while len(games_in_round) < num_consoles and matchups:
-            home, away = matchups.pop(0)
+        # Iterate over a copy of matchups
+        for home, away in matchups[:]:  # Iterate over a copy of the matchups list
+            if len(games_in_round) >= num_consoles:
+                break
 
-            # Skip if players are already scheduled in this round
-            if home in players_in_round or away in players_in_round:
-                matchups.append((home, away))
+            # Debugging: Validate current pair
+            if debug:
+                st.write(f"[DEBUG] Evaluating Pair: ({home}, {away})")
+
+            # Skip if players exceed games_per_player or conflict with the current round
+            if (
+                player_game_count[home] >= games_per_player
+                or player_game_count[away] >= games_per_player
+                or home in players_in_round
+                or away in players_in_round
+            ):
+                continue
+
+            # Ensure diversity in matchups by minimizing repeat pairings
+            if matchup_count[(home, away)] > 0:
                 continue
 
             # Assign console
             console = f"Console {len(used_consoles) + 1}"
-            if console in used_consoles:
-                matchups.append((home, away))
-                continue
-
             used_consoles.add(console)
 
             # Balance home and away games
@@ -97,47 +134,86 @@ def generate_league_schedule(players, teams, num_consoles, league_format="Play-E
             # Update state
             players_in_round.update([home, away])
             home_away_count[home] += 1
+            player_game_count[home] += 1
+            player_game_count[away] += 1
+            matchup_count[(home, away)] += 1
+            matchup_count[(away, home)] += 1
             game_id += 1
+
+            # Safely remove the matchup
+            if (home, away) in matchups:
+                matchups.remove((home, away))
 
         # Add completed round to the schedule
         schedule.extend(games_in_round)
         round_num += 1
 
+        # Re-shuffle remaining matchups to prioritize unused pairs
+        matchups = sorted(
+            matchups,
+            key=lambda x: matchup_count[x],
+        )
+        random.shuffle(matchups)  # Randomize within the sorted order
+
     return schedule
 
 
+def validate_schedule(schedule, tournament_details):
+    """
+    Validate the schedule against key constraints.
 
-# Function to validate the schedule
-def validate_schedule(schedule, num_consoles):
+    Args:
+        schedule (list): Generated schedule of games.
+        tournament_details (dict): Dictionary containing tournament configuration details.
+
+    Returns:
+        list: Validation messages indicating issues.
+    """
+    num_consoles = tournament_details["num_consoles"]
+    games_per_player = tournament_details["games_per_player"]
+
     validation_messages = []
 
     # Validate no player plays more than once per round
-    for round_num in set(game['Round'] for game in schedule):
+    for round_num in set(game["Round"] for game in schedule):
         players_in_round = set()
-        for game in filter(lambda g: g['Round'] == round_num, schedule):
-            if game['Home'] in players_in_round or game['Away'] in players_in_round:
+        for game in filter(lambda g: g["Round"] == round_num, schedule):
+            if game["Home"] in players_in_round or game["Away"] in players_in_round:
                 validation_messages.append(f"Round {round_num}: Player conflict detected.")
-            players_in_round.add(game['Home'])
-            players_in_round.add(game['Away'])
+            players_in_round.add(game["Home"])
+            players_in_round.add(game["Away"])
 
     # Validate no console is used more than once per round
-    for round_num in set(game['Round'] for game in schedule):
+    for round_num in set(game["Round"] for game in schedule):
         consoles_in_round = set()
-        for game in filter(lambda g: g['Round'] == round_num, schedule):
-            if game['Console'] in consoles_in_round:
+        for game in filter(lambda g: g["Round"] == round_num, schedule):
+            if game["Console"] in consoles_in_round:
                 validation_messages.append(f"Round {round_num}: Console conflict detected.")
-            consoles_in_round.add(game['Console'])
+            consoles_in_round.add(game["Console"])
 
-    # Validate the maximum number of games per round matches the number of consoles
-    for round_num in set(game['Round'] for game in schedule):
-        games_in_round = list(filter(lambda g: g['Round'] == round_num, schedule))
-        if len(games_in_round) > num_consoles:
-            validation_messages.append(f"Round {round_num}: Too many games scheduled for available consoles.")
+    # Validate total games per player
+    player_game_count = {player: 0 for player in set(p for game in schedule for p in [game["Home"], game["Away"]])}
+    for game in schedule:
+        player_game_count[game["Home"]] += 1
+        player_game_count[game["Away"]] += 1
+    for player, count in player_game_count.items():
+        if count != games_per_player:
+            validation_messages.append(f"Player {player} has {count} games, expected {games_per_player}.")
 
     return validation_messages
 
-# Function to initialize standings
+
 def initialize_standings(players, teams):
+    """
+    Initialize standings for the tournament.
+
+    Args:
+        players (list): List of players.
+        teams (dict): Mapping of players to their teams.
+
+    Returns:
+        pd.DataFrame: Initial standings DataFrame.
+    """
     # Ensure all players have teams
     if not all(player in teams for player in players):
         raise ValueError("Some players do not have corresponding teams in the 'teams' dictionary.")
@@ -151,19 +227,195 @@ def initialize_standings(players, teams):
         "Games Played": 0
     })
 
+def validate_league_completion(schedule_df, results_df, debug=False):
+    """
+    Determine if all league matches are complete by comparing the schedule with results.
+
+    Args:
+        schedule_df (pd.DataFrame): DataFrame containing the full league fixture list.
+        results_df (pd.DataFrame): DataFrame containing the league match history (completed games).
+        debug (bool): If True, prints debug information.
+
+    Returns:
+        bool: True if all matches in the schedule are complete, False otherwise.
+    """
+    if schedule_df.empty:
+        if debug:
+            st.write("[DEBUG] Schedule table is empty.")
+        return False
+
+    if results_df.empty:
+        if debug:
+            st.write("[DEBUG] Results table is empty. No matches have been played.")
+        return False
+
+    # Check if all games in the schedule exist in the results
+    all_games_exist = set(schedule_df["Game #"]) == set(results_df["Game #"])
+
+    # Check if all results in the completed games have non-null goals
+    no_null_values = not results_df[["Home Goals", "Away Goals"]].isnull().any().any()
+
+    if debug:
+        st.write(f"[DEBUG] All Scheduled Games Exist in Results: {all_games_exist}")
+        st.write(f"[DEBUG] No Null Values in Results: {no_null_values}")
+
+    return all_games_exist and no_null_values
+
+def validate_playoffs_completion(playoff_results, debug=False):
+    """
+    Validate if all semi-final matches in the playoffs are complete and ensure there are exactly 4 matches.
+
+    Args:
+        playoff_results (pd.DataFrame): DataFrame containing playoff results.
+        debug (bool): If True, prints debug information.
+
+    Returns:
+        bool: True if exactly 4 semi-final matches are complete, False otherwise.
+    """
+    if playoff_results.empty:
+        if debug:
+            st.write("[DEBUG] Playoff results table is empty. No matches have been played.")
+        return False
+
+    # Filter for semi-final matches
+    semi_final_matches = playoff_results[playoff_results["Match"].str.startswith("SF")]
+
+    if semi_final_matches.empty:
+        if debug:
+            st.write("[DEBUG] No semi-final matches found in playoff results.")
+        return False
+
+    # Validate the number of semi-final matches
+    if len(semi_final_matches) != 4:
+        if debug:
+            st.write(f"[DEBUG] Found {len(semi_final_matches)} semi-final matches. Expected: 4.")
+        return False
+
+    # Check if all semi-final matches have completed results
+    no_null_values = not semi_final_matches[["Home Goals", "Away Goals"]].isnull().any().any()
+
+    if debug:
+        st.write(f"[DEBUG] All Semi-Final Matches Have Non-Null Results: {no_null_values}")
+
+    return no_null_values
 
 # Helper function: Safely retrieve session state variables
 def get_session_state(key, default=None):
     return st.session_state.get(key, default)
 
-# Upsert Results: Add or update game results while avoiding duplicates
 def upsert_results(results, new_result):
     """
-    Upserts a new game result into the results DataFrame, avoiding duplicates based on 'Game #'.
+    Inserts or updates a game result into the results DataFrame based on 'Game #'.
+
+    Args:
+        results (pd.DataFrame): DataFrame containing existing game results.
+        new_result (dict): Dictionary containing the new game result.
+
+    Returns:
+        pd.DataFrame: Updated results DataFrame.
     """
-    results = results.drop_duplicates(subset=["Game #"], keep="last")
-    new_result_df = pd.DataFrame([new_result])
-    return pd.concat([results, new_result_df], ignore_index=True)
+    # Ensure 'results' is a DataFrame to handle edge cases
+    if results is None or results.empty:
+        return pd.DataFrame([new_result])
+
+    # Check if the 'Game #' already exists
+    if new_result["Game #"] in results["Game #"].values:
+        # Update the existing row by aligning new_result keys to DataFrame columns
+        idx = results.index[results["Game #"] == new_result["Game #"]].tolist()[0]
+        for key, value in new_result.items():
+            if key in results.columns:
+                results.at[idx, key] = value
+    else:
+        # Add the new result as a new row
+        new_result_df = pd.DataFrame([new_result])
+        results = pd.concat([results, new_result_df], ignore_index=True)
+
+    # Ensure no duplicate rows
+    return results.drop_duplicates(subset=["Game #"], keep="last").reset_index(drop=True)
+
+
+# Centralized Function for Updating Results
+def update_league_game_results(results_df, new_result, players, teams):
+    """
+    Update the results DataFrame with new game results and recalculate standings.
+
+    Args:
+        results_df (pd.DataFrame): Current results DataFrame.
+        new_result (dict): Dictionary containing the new game result to update.
+        players (list): List of players in the tournament.
+        teams (dict): Dictionary mapping players to teams.
+
+    Returns:
+        tuple: Updated results DataFrame and standings DataFrame.
+    """
+    # Update results
+    updated_results = upsert_results(results_df, new_result)
+
+    # Recalculate standings in a batch
+    games_played = updated_results.dropna(subset=["Home Goals", "Away Goals"])
+    updated_standings = initialize_standings(players, teams)
+
+    if not games_played.empty:
+        updated_standings = update_standings(updated_standings, games_played)
+
+    return updated_results, updated_standings
+
+def update_playoff_results(results_df, new_result):
+    """
+    Update the playoff results DataFrame with new game results.
+
+    Args:
+        results_df (pd.DataFrame): Current playoff results DataFrame.
+        new_result (dict): Dictionary containing the new game result to update.
+
+    Returns:
+        pd.DataFrame: Updated playoff results DataFrame.
+    """
+    # Update results using the existing upsert_results logic
+    updated_results = upsert_results(results_df, new_result)
+
+    # Update the Status column
+    updated_results["Status"] = updated_results["Game #"].apply(
+        lambda game_id: "✅"
+        if not updated_results.loc[
+            updated_results["Game #"] == game_id, ["Home Goals", "Away Goals"]
+        ].isna().any().any()
+        else "⏳ TBD"
+    )
+
+    return updated_results
+
+def update_final_matches(playoff_results):
+    """
+    Updates the finals matches with the winners of the semi-final matches.
+
+    Args:
+        playoff_results (pd.DataFrame): DataFrame containing playoff results.
+
+    Returns:
+        pd.DataFrame: Updated playoff_results with finals matches updated.
+    """
+    # Extract semi-final matches
+    sf1_matches = playoff_results[playoff_results["Match"].str.startswith("SF1")]
+    sf2_matches = playoff_results[playoff_results["Match"].str.startswith("SF2")]
+
+    # Determine winners for semi-finals
+    sf1_win = determine_winner(sf1_matches) if not sf1_matches.dropna(subset=["Home Goals", "Away Goals"]).empty else None
+    sf2_win = determine_winner(sf2_matches) if not sf2_matches.dropna(subset=["Home Goals", "Away Goals"]).empty else None
+
+    if sf1_win and sf2_win:
+        # Find and update final matches with winners
+        final_matches = playoff_results["Match"].str.startswith("Final")
+        playoff_results.loc[final_matches, ["Home", "Away"]] = playoff_results.loc[
+            final_matches, ["Home", "Away"]
+        ].replace({"Winner SF1": sf1_win, "Winner SF2": sf2_win})
+
+        # Update session state
+        st.session_state.playoff_results = playoff_results.copy()
+    else:
+        st.warning("One or both semi-final matches are incomplete. Complete the matches to update finals.")
+
+    return playoff_results
 
 # Update Standings: Calculate points, goals, and xG dynamically
 def update_standings(standings, results):
@@ -191,11 +443,11 @@ def update_standings(standings, results):
     return standings.reset_index()
 
 # Calculate Outcomes: Wins, Losses, and Draws
-def calculate_outcomes(results):
+def calculate_outcomes(results, players):
     """
     Calculates wins, losses, and draws for all players based on game results.
     """
-    outcomes = pd.DataFrame({"Player": get_session_state("players", [])}).assign(Wins=0, Losses=0, Draws=0)
+    outcomes = pd.DataFrame({"Player": players}).assign(Wins=0, Losses=0, Draws=0)
 
     for _, game in results.iterrows():
         home, away = game["Home"], game["Away"]
@@ -231,126 +483,149 @@ def sort_standings(
     )
 
 
-# Function to calculate tournament duration
-def calculate_tournament_duration(schedule, half_duration):
-    game_duration = (half_duration * 2) + 3  # Two halves + 3-minute break
-    total_games = len(schedule)
-    total_duration = total_games * game_duration
-
-    # Calculate team management time
-    num_teams = len(set([game["Home"] for game in schedule] + [game["Away"] for game in schedule]))
-    num_consoles = len(set([game["Console"] for game in schedule]))
-    team_management_time = num_teams * num_consoles * 2  # 2 minutes per team per console
-
-    return total_duration, team_management_time
-
-def estimate_tournament_duration(num_players, num_consoles, half_duration, league_format, playoff_format):
+def estimate_league_duration(num_players, num_consoles, half_duration, games_per_player, league_format):
     """
-    Estimate the total duration of the tournament based on league and playoff formats, considering consoles.
+    Estimate the total league duration based on the number of players, consoles, game duration, and league format.
 
     Args:
         num_players (int): Total number of players in the tournament.
         num_consoles (int): Number of consoles available.
-        half_duration (int): Duration of one half in minutes.
-        league_format (str): Format of league games (e.g., "Play-Everyone").
-        playoff_format (str): Format of playoff games (e.g., "Single-Elimination", "Double-Elimination").
+        half_duration (int): Duration of one half of a game in minutes.
+        games_per_player (int): Number of games each player will play in the league phase.
+        league_format (str): Format of the league ("League", "Group", or "Knockouts").
 
     Returns:
-        dict: Breakdown of the estimated tournament duration.
+        dict: League duration details, including total league games, rounds, and duration.
     """
-    # Define constants
-    game_duration = (half_duration * 2) + 3  # Two halves + 3-minute break
+    if league_format != "League":
+        raise NotImplementedError(f"League format '{league_format}' is not yet supported.")
 
-    # League duration calculation
-    if league_format == "Play-Everyone":
-        # Each team plays every other team once
-        total_league_games = num_players * (num_players - 1) // 2
-    else:
-        raise ValueError(f"Unsupported league format: {league_format}")
+    total_league_games = (num_players * games_per_player) // 2
+    game_duration = (half_duration * 2) + 3  # Two halves + break
+    league_rounds = (total_league_games + num_consoles - 1) // num_consoles
+    league_duration = league_rounds * game_duration
 
-    # Calculate league rounds based on consoles
-    league_rounds = (total_league_games + num_consoles - 1) // num_consoles  # Ceiling division
-    total_league_duration = league_rounds * game_duration
+    return {
+        "league_duration": league_duration,
+        "total_league_games": total_league_games,
+        "league_rounds": league_rounds,
+        "game_duration": game_duration,
+    }
 
-    # Playoff duration calculation
+def estimate_playoff_duration(num_players, num_consoles, game_duration, playoff_format):
+    """
+    Estimate the total playoff duration based on the number of players, consoles, game duration, and playoff format.
+
+    Args:
+        num_players (int): Total number of players in the tournament.
+        num_consoles (int): Number of consoles available.
+        game_duration (int): Duration of one game in minutes.
+        playoff_format (str): Format of the playoffs ("Single-Elimination" or "Double-Elimination").
+
+    Returns:
+        dict: Playoff duration details, including total playoff games, rounds, and duration.
+    """
     if playoff_format == "Single-Elimination":
-        # Top 6 teams: 4 wildcard games (1 match), 2 semifinals (1 match), 1 final (1 match)
         total_playoff_games = 4 + 2 + 1
-        playoff_rounds = (total_playoff_games + num_consoles - 1) // num_consoles  # Ceiling division
+        playoff_rounds = (total_playoff_games + num_consoles - 1) // num_consoles
     elif playoff_format == "Double-Elimination":
-        # Top 6 teams: 4 wildcard games (home/away), 2 semifinals (home/away), 2 finals (home/away)
-        # Wildcards (4 games = 2 matchups * 2 rounds)
         wildcard_games = 4
-        wildcard_rounds = (wildcard_games + num_consoles - 1) // num_consoles  # Ceiling division
-
-        # Semifinals (4 games = 2 matchups * 2 rounds)
         semifinal_games = 4
-        semifinal_rounds = (semifinal_games + num_consoles - 1) // num_consoles  # Ceiling division
-
-        # Finals (2 games = 1 matchup * 2 rounds, single console per game)
         final_games = 2
-        final_rounds = final_games  # Each game requires a separate round due to single-console limitation
-
         total_playoff_games = wildcard_games + semifinal_games + final_games
-        playoff_rounds = wildcard_rounds + semifinal_rounds + final_rounds
+        playoff_rounds = (
+            (wildcard_games + num_consoles - 1) // num_consoles +
+            (semifinal_games + num_consoles - 1) // num_consoles +
+            final_games
+        )
     else:
         raise ValueError(f"Unsupported playoff format: {playoff_format}")
 
-    # Calculate playoff duration
-    total_playoff_duration = playoff_rounds * game_duration
-
-    # Calculate team management time
-    team_management_time = num_players * num_consoles * 2  # 2 minutes per team per console
-
-    # Calculate total duration
-    total_duration = total_league_duration + total_playoff_duration + team_management_time
-
-    # Convert to hours and minutes
-    total_hours = total_duration // 60
-    total_minutes = total_duration % 60
-
-    # Output detailed breakdown for debugging or user insights
-    breakdown = {
-        "total_league_games": total_league_games,
-        "total_league_rounds": league_rounds,
-        "total_league_duration": total_league_duration,
+    return {
+        "playoff_duration": playoff_rounds * game_duration,
         "total_playoff_games": total_playoff_games,
-        "total_playoff_rounds": playoff_rounds,
-        "total_playoff_duration": total_playoff_duration,
-        "team_management_time": team_management_time,
-        "total_duration_minutes": total_duration,
-        "total_hours": total_hours,
-        "total_minutes": total_minutes,
+        "playoff_rounds": playoff_rounds,
     }
 
-    return breakdown
 
-
-
-# Function to generate playoffs bracket
-def generate_playoffs_bracket(standings, last_game_id):
+def estimate_tournament_duration(num_players, num_consoles, half_duration, games_per_player, league_format, playoff_format, misc_time=2):
     """
-    Generate a playoffs bracket based on league standings.
+    Estimate the total duration of the tournament, including league, playoff phases, and additional time for miscellaneous activities.
+
+    Args:
+        num_players (int): Total number of players in the tournament.
+        num_consoles (int): Number of consoles available.
+        half_duration (int): Duration of one half of a game in minutes.
+        games_per_player (int): Number of games each player will play in the league phase.
+        league_format (str): Format of the league ("League", "Group", or "Knockouts").
+        playoff_format (str): Format of the playoffs ("Single-Elimination" or "Double-Elimination").
+        misc_time (int): Number of extra minutes per round as a buffer
+
+    Returns:
+        dict: A breakdown of the tournament's total duration, league duration, playoff duration, and additional time.
     """
+    league_details = estimate_league_duration(
+        num_players=num_players,
+        num_consoles=num_consoles,
+        half_duration=half_duration,
+        games_per_player=games_per_player,
+        league_format=league_format,
+    )
+
+    playoff_details = estimate_playoff_duration(
+        num_players=num_players,
+        num_consoles=num_consoles,
+        game_duration=league_details["game_duration"],
+        playoff_format=playoff_format,
+    )
+
+    additional_time = (league_details["league_rounds"] + playoff_details["playoff_rounds"]) * misc_time
+
+    total_duration = league_details["league_duration"] + playoff_details["playoff_duration"] + additional_time
+
+    return {
+        "total_duration": total_duration,
+        "league_details": league_details,
+        "playoff_details": playoff_details,
+        "additional_time": additional_time,
+    }
+
+
+def generate_playoffs_bracket(tournament_details, standings, last_game_id, debug=False):
+    """
+    Generate a playoffs bracket based on league standings and tournament details.
+
+    Args:
+        tournament_details (dict): Dictionary containing tournament configuration details.
+        standings (pd.DataFrame): Standings DataFrame, ranked by tournament tiebreakers.
+        last_game_id (int): The last game ID from the league stage to continue numbering.
+        debug (bool): Whether to enable debug output.
+
+    Returns:
+        list: A playoffs bracket as a list of dictionaries.
+    """
+    # Extract parameters from tournament details
+    playoff_format = tournament_details["playoff_format"]
+    num_consoles = tournament_details["num_consoles"]
 
     # Sort standings for ranking
-    ranked_standings = (
-        standings
-        .sort_values(by=["Points", "Goals", "xG"], ascending=False)
-        .reset_index(drop=True)
-    )
+    ranked_standings = standings.reset_index(drop=True)
     ranked_standings.index += 1  # Start index from 1
     ranked_standings.index.name = "Rank"
 
+    if debug:
+        print("[DEBUG] Ranked Standings:")
+        print(ranked_standings)
+
     # Ensure there are enough players for playoffs
     if ranked_standings.shape[0] < 6:
-        raise ValueError("Not enough players to generate a playoffs bracket.")
+        raise ValueError("Not enough players to generate a playoffs bracket (minimum 6 required).")
 
-    # Extract top 2 players (semifinals) and next 4 players (wildcard matches)
+    # Extract top-ranked players for wildcard and semifinals
     top_two = ranked_standings.iloc[:2]["Player"].tolist()
-    wildcard_players = ranked_standings.iloc[2:6].reset_index()[["Rank", "Player"]]  # Extract Rank and Player
+    wildcard_players = ranked_standings.iloc[2:6][["Player"]].reset_index()
 
-    # Initialize game IDs and bracket
+    # Initialize variables
     current_game_id = last_game_id + 1
     bracket = []
 
@@ -363,99 +638,95 @@ def generate_playoffs_bracket(standings, last_game_id):
             "Away": away,
             "Console": console,
             "Match": match,
+            "Played": ""  # Placeholder for played status
         }
 
-    # Determine wildcard matchups: 3rd vs. 6th and 4th vs. 5th
-    wc1_home = wildcard_players.loc[wildcard_players["Rank"] == 3, "Player"].values[0]
-    wc1_away = wildcard_players.loc[wildcard_players["Rank"] == 6, "Player"].values[0]
-    wc2_home = wildcard_players.loc[wildcard_players["Rank"] == 4, "Player"].values[0]
-    wc2_away = wildcard_players.loc[wildcard_players["Rank"] == 5, "Player"].values[0]
-
-    wildcard_matches = [
-        {"Home": wc1_home, "Away": wc1_away, "Match": "WC1"},  # 3rd vs. 6th
-        {"Home": wc2_home, "Away": wc2_away, "Match": "WC2"},  # 4th vs. 5th
+    # Wildcard matches: 3rd vs. 6th and 4th vs. 5th
+    wildcard_matchups = [
+        (wildcard_players.loc[0, "Player"], wildcard_players.loc[3, "Player"]),  # 3rd vs. 6th
+        (wildcard_players.loc[1, "Player"], wildcard_players.loc[2, "Player"])   # 4th vs. 5th
     ]
 
-    # Create home-and-away fixtures for wildcard matches
     round_number = 1
-    for match in wildcard_matches:
+    for i, (home, away) in enumerate(wildcard_matchups):
         # First leg
         bracket.append(add_fixture(
-            home=match["Home"],
-            away=match["Away"],
-            match=match["Match"],
+            home=home,
+            away=away,
+            match=f"WC{i+1}",
             round_number=round_number,
-            console=f"Console {1 if len(bracket) % 2 == 0 else 2}",
-            game_id=current_game_id,
+            console=f"Console {i % num_consoles + 1}",
+            game_id=current_game_id
         ))
         current_game_id += 1
 
         # Second leg (reverse fixture)
         bracket.append(add_fixture(
-            home=match["Away"],
-            away=match["Home"],
-            match=match["Match"],
+            home=away,
+            away=home,
+            match=f"WC{i+1}",
             round_number=round_number + 1,
-            console=f"Console {1 if len(bracket) % 2 == 0 else 2}",
-            game_id=current_game_id,
+            console=f"Console {i % num_consoles + 1}",
+            game_id=current_game_id
         ))
         current_game_id += 1
 
-    # Semifinals: 1st vs. WC2 winner, 2nd vs. WC1 winner
-    semifinal_matches = [
-        {"Home": top_two[0], "Away": "Winner WC2", "Match": "SF1"},
-        {"Home": top_two[1], "Away": "Winner WC1", "Match": "SF2"},
+    # Semifinals: Top 2 vs. Wildcard winners
+    semifinal_matchups = [
+        (top_two[0], "Winner WC2"),
+        (top_two[1], "Winner WC1")
     ]
-    for match in semifinal_matches:
-        round_number += 1
+    round_number += 2
+    for i, (home, away) in enumerate(semifinal_matchups):
+        # First leg
         bracket.append(add_fixture(
-            home=match["Home"],
-            away=match["Away"],
-            match=match["Match"],
+            home=home,
+            away=away,
+            match=f"SF{i+1}",
             round_number=round_number,
-            console=f"Console {1 if len(bracket) % 2 == 0 else 2}",
-            game_id=current_game_id,
+            console=f"Console {i % num_consoles + 1}",
+            game_id=current_game_id
         ))
         current_game_id += 1
 
         # Second leg (reverse fixture)
         bracket.append(add_fixture(
-            home=match["Away"],
-            away=match["Home"],
-            match=match["Match"],
+            home=away,
+            away=home,
+            match=f"SF{i+1}",
             round_number=round_number + 1,
-            console=f"Console {1 if len(bracket) % 2 == 0 else 2}",
-            game_id=current_game_id,
+            console=f"Console {i % num_consoles + 1}",
+            game_id=current_game_id
         ))
         current_game_id += 1
 
     # Finals: SF1 winner vs. SF2 winner
-    final_match = {"Home": "Winner SF1", "Away": "Winner SF2", "Match": "Final"}
-    round_number += 1
+    final_match = ("Winner SF1", "Winner SF2")
+    round_number += 2
     bracket.append(add_fixture(
-        home=final_match["Home"],
-        away=final_match["Away"],
-        match=final_match["Match"],
+        home=final_match[0],
+        away=final_match[1],
+        match="Final",
         round_number=round_number,
         console="Console 1",
-        game_id=current_game_id,
+        game_id=current_game_id
     ))
     current_game_id += 1
 
     # Second leg (reverse fixture)
     bracket.append(add_fixture(
-        home=final_match["Away"],
-        away=final_match["Home"],
-        match=final_match["Match"],
+        home=final_match[1],
+        away=final_match[0],
+        match="Final",
         round_number=round_number + 1,
         console="Console 1",
-        game_id=current_game_id,
+        game_id=current_game_id
     ))
 
-    # Debug: Display the generated bracket
-    print("Generated Bracket:")
-    for b in bracket:
-        print(b)
+    if debug:
+        print("[DEBUG] Generated Playoff Bracket:")
+        for game in bracket:
+            print(game)
 
     return bracket
 

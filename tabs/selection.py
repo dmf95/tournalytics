@@ -7,7 +7,12 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 # custom libraries
-from utils.tournament_utils import generate_league_schedule, estimate_tournament_duration
+from utils.tournament_utils import (
+    generate_league_schedule, 
+    estimate_tournament_duration, 
+    validate_schedule,
+    initialize_standings,
+)
 from utils.general_utils import initialize_session_state
 
 #-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-
@@ -15,6 +20,8 @@ from utils.general_utils import initialize_session_state
 #-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-
 
 def render():
+
+
     st.markdown(
     """
     <div style="text-align: center; margin-bottom: 20px;">
@@ -42,19 +49,38 @@ def render():
     st.session_state["selected_tournament_id"] = selected_tournament_id
     tournament_details = st.session_state["tournaments"][selected_tournament_id]
 
-    # Estimate tournament duration
-    duration_breakdown = estimate_tournament_duration(
-        num_players=st.session_state["num_players"],
-        num_consoles=st.session_state["num_consoles"],
-        half_duration=st.session_state["half_duration"],
-        league_format=st.session_state["league_format"],
-        playoff_format=st.session_state["playoff_format"],
+    # Retrieve parameters from session state
+    games_per_player = tournament_details["games_per_player"]
+    num_players = tournament_details["num_players"]
+    num_consoles = tournament_details["num_consoles"]
+    half_duration = tournament_details["half_duration"]
+    playoff_format = tournament_details["playoff_format"]
+    league_format = tournament_details["league_format"]
+    team_selection = tournament_details["team_selection"]
+
+    # Calculate tournament details using modularized functions
+    tournament_duration_details = estimate_tournament_duration(
+        num_players=num_players,
+        num_consoles=num_consoles,
+        half_duration=half_duration,
+        games_per_player=games_per_player,
+        league_format=league_format,
+        playoff_format=playoff_format,
     )
 
-    #-1-tournament details expander
-    with st.expander("🏆 Tournament Details", expanded=False):
-        # Tournament details
-        st.markdown(f"### 🏆 **{st.session_state['tournament_name']}**")
+    league_details = tournament_duration_details["league_details"]
+    playoff_details = tournament_duration_details["playoff_details"]
+    additional_time = tournament_duration_details["additional_time"]
+    total_duration = tournament_duration_details["total_duration"]
+
+    # Convert durations to hours and minutes
+    league_duration_hm = f"{league_details['league_duration'] // 60} hours and {league_details['league_duration'] % 60} minutes"
+    playoff_duration_hm = f"{playoff_details['playoff_duration'] // 60} hours and {playoff_details['playoff_duration'] % 60} minutes"
+    total_duration_hm = f"{total_duration // 60} hours and {total_duration % 60} minutes"
+
+    # Collapsible sections for details
+    with st.expander("🏆 Tournament Details", expanded=True):
+        st.markdown(f"### 🏆 **{tournament_details['tournament_name']}**")
         # Tournament details
         st.write(f"**🏟️ League:** {tournament_details['league_name']}")
         st.write(f"**⚽ Game:** {tournament_details['video_game']}")
@@ -66,27 +92,24 @@ def render():
         st.write(f"**👥 Players:** {tournament_details['num_players']}")
         st.write(f"**🎮 Consoles:** {tournament_details['num_consoles']}")
         st.write(f"**⏱️ Half Duration:** {tournament_details['half_duration']} minutes")
+        st.write(f"**🕹️ Games Per Player:** {tournament_details['games_per_player']}")
 
-    #-2-estimated duration expander
     with st.expander("⏳ Estimated Duration", expanded=False):
-        # Divider for duration section
-        st.markdown(f"#### **⏳ ~Est: {duration_breakdown['total_hours']} hours & {duration_breakdown['total_minutes']} minutes**")
+        st.markdown(f"#### **⏳ ~ {total_duration_hm}**")
         # League duration details
         st.markdown("**🏅 League Games**")
-        st.write(f"- **Total Games:** {duration_breakdown['total_league_games']} across {duration_breakdown['total_league_rounds']} rounds")
-        st.write(f"- **Estimated Duration:** ~{duration_breakdown['total_league_duration']} minutes")
+        st.write(f"- **Total Games:** {league_details['total_league_games']} games, {league_details['league_rounds']} rounds")
+        st.write(f"- **Estimated Duration:** ~{league_duration_hm}")
         # Playoff duration details
         st.markdown("**⚔️ Playoff Games**")
-        st.write(f"- **Total Games:** {duration_breakdown['total_playoff_games']} across {duration_breakdown['total_playoff_rounds']} rounds")
-        st.write(f"- **Estimated Duration:** ~{duration_breakdown['total_playoff_duration']} minutes")
+        st.write(f"- **Estimated Duration:** ~{playoff_duration_hm}")
         # Additional time
         st.markdown("**⏱️ Additional Time**")
-        st.write(f"- **Team Management Time:** ~{duration_breakdown['team_management_time']} minutes")
+        st.write(f"- **Miscellaneous Time:** ~{additional_time} minutes")
 
-    #-3-players and team selection expander
     with st.expander("👤 Players & Teams", expanded=False):
         st.markdown(f"### 👤**Player Teams**")
-        for player, team in tournament_details["team_selection"].items():
+        for player, team in st.session_state["team_selection"].items():
             st.write(f"- {player}: {team}")
 
     # Lock the tab if no tournament is selected
@@ -101,38 +124,50 @@ def render():
         )
         st.stop()
 
-   # Generate Tournament Schedule Section
+    # Generate Tournament Schedule Section
     if st.button("🚀 Generate Tournament Schedule", key="generate_schedule", use_container_width=True):
         try:
-            # Extract necessary details from the selected tournament
+            # Validate required fields in tournament_details
+            required_keys = ["selected_players", "team_selection", "num_consoles", "games_per_player"]
+            for key in required_keys:
+                if key not in tournament_details:
+                    raise KeyError(f"Missing required field in tournament details: '{key}'")
+
+            # Generate the league schedule
+            schedule = generate_league_schedule(tournament_details)
+
+            # Validate the generated schedule
+            validation_messages = validate_schedule(schedule, tournament_details)
+            if validation_messages:
+                st.error("Validation errors detected in the generated schedule:")
+                for msg in validation_messages:
+                    st.error(f"- {msg}")
+                raise ValueError("Schedule validation failed.")
+
+            # Prepare results and standings
+            results_df = pd.DataFrame(schedule)
+            results_df["Home Goals"] = np.nan
+            results_df["Away Goals"] = np.nan
+            results_df["Home xG"] = np.nan
+            results_df["Away xG"] = np.nan
+
+            # Extract necessary details
             players = tournament_details["selected_players"]
             teams = tournament_details["team_selection"]
-            num_consoles = tournament_details["num_consoles"]
-            half_duration = tournament_details["half_duration"]
+            standings_df = initialize_standings(players, teams)
 
-            # Initialize session state for players and teams
-            st.session_state["players"] = players
-            st.session_state["teams"] = teams
-
-            # Call the generate_schedule function
-            schedule = generate_league_schedule(players, teams, num_consoles)
-
-            # Store schedule and initialize results in session state
+            # Store results and standings in session state
             st.session_state["schedule"] = schedule
-            st.session_state["results"] = pd.DataFrame(schedule)
-            st.session_state["results"]["Home Goals"] = np.nan
-            st.session_state["results"]["Away Goals"] = np.nan
-            st.session_state["results"]["Home xG"] = np.nan
-            st.session_state["results"]["Away xG"] = np.nan
+            st.session_state["results"] = results_df
+            st.session_state["standings"] = standings_df
 
-            # Initialize standings
-            st.session_state["standings"] = initialize_session_state()
-
-            # Mark tournament as ready
-            st.session_state["tournament_ready"] = True  # Ensure it's set to True
+            # Mark the tournament as ready
+            st.session_state["tournament_ready"] = True
             st.success("Tournament schedule generated successfully! Tabs are now unlocked.", icon="✅")
 
         except KeyError as e:
             st.error(f"Missing required setup information: {e}", icon="❌")
+        except ValueError as e:
+            st.error(f"Validation failed: {e}", icon="❌")
         except Exception as e:
-            st.error(f"An error occurred while generating the schedule: {e}", icon="❌")
+            st.error(f"An unexpected error occurred: {e}", icon="❌")

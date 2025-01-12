@@ -1,10 +1,6 @@
 import streamlit as st
-import pandas as pd
-import numpy as np
 
 # Custom libraries
-from utils.tournament_utils import generate_league_schedule
-from utils.general_utils import initialize_session_state
 from tabs import (
     setup_render,
     selection_render,
@@ -76,7 +72,15 @@ if st.session_state["active_section"] == "Tournament Setup":
 
 elif st.session_state["active_section"] == "Tournament Management":
     if not st.session_state["tournaments"]:
-        st.warning("No tournaments available. Please set up a tournament first.", icon="🔒")
+        st.markdown(
+            """
+            <div style='text-align: center; margin-top: 50px;'>
+                <h3 style='margin-bottom: 10px; color: #808080;'>🔒 Locked</h3>
+                <p style='font-size: 14px; color: #ccc;'>No Tournament available. Please complete 🛠️ Build a Tournament first.</p>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
         st.stop()
 
     # Management Tabs
