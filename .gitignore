@@ -1,0 +1,34 @@
+# Ignore Python cache files
+__pycache__/
+**/__pycache__/
+*.pyc
+*.pyo
+
+# Ignore __pycache__ in utils/
+utils/__pycache__/
+
+# Ignore __pycache__ in tabs/
+tabs/__pycache__/
+
+# Ignore Python bytecode files globally
+*.py[cod]
+
+# Ignore all JSON files in the assets/ folder
+assets/*.json
+
+# Ignore Streamlit configuration and sensitive files
+.streamlit/
+**/.streamlit/  # Extra safety for nested .streamlit directories
+*.env  # Ignore environment variable files
+.env.*  # Ignore specific environment files (e.g., .env.production)
+.env
+# Ignore Firebase credentials
+*.json  # Caution: Only include this if no other JSON files need to be versioned
+!schema.json  # Example: Explicitly allow certain JSON files if needed
+
+# Ignore CSV files
+*.csv
+*.tsv  # Add support for tab-separated value files, if applicabl
+
+# Ignore test notebooks
+*.ipynb
