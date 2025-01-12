@@ -35,8 +35,8 @@ api_key = st.secrets["FIREBASE"]["api_key"]
 
 # Initialize Firebase Admin SDK
 if not firebase_admin._apps:
-    cred = credentials.Certificate(firebase_credentials)
-    initialize_app(cred, {"projectId": firebase_credentials["project_id"]})
+    cred = credentials.Certificate(firebase_credentials)  # Pass the dictionary
+    initialize_app(cred)
 
 # Firestore client
 db = firestore.client()
