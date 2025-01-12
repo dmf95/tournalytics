@@ -213,7 +213,7 @@ def authenticate_user(identifier, FIREBASE_API_KEY, password=None):
     """
     try:
         # Fetch Firebase API key
-        if not api_key:
+        if not FIREBASE_API_KEY:
             raise ValueError("FIREBASE_API_KEY is not set in the environment variables.")
 
         # Determine if the identifier is an email
