@@ -1,4 +1,5 @@
 import os
+import json
 from datetime import datetime
 import firebase_admin
 from firebase_admin import credentials, firestore, auth
@@ -8,15 +9,18 @@ import requests
 import random
 from utils.general_utils import generate_unique_id 
 
-# Load environment variables
-load_dotenv()
-
-google_credentials_path = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
-project_id = os.getenv("FIRESTORE_PROJECT_ID")
+#--------
+# PROD
+#--------
+# Access credentials and Firebase details from Streamlit secrets
+firebase_credentials = st.secrets["GOOGLE_APPLICATION_CREDENTIALS"]  # JSON string of Google credentials
+project_id = st.secrets["FIREBASE"]["project_id"]  # Firebase project ID
+api_key = st.secrets["FIREBASE"]["api_key"]  # Firebase API Key
 
 # Initialize Firebase Admin SDK if not already initialized
 if not firebase_admin._apps:
-    cred = credentials.Certificate(google_credentials_path)
+    # Convert JSON string to dictionary for Firebase credentials
+    cred = credentials.Certificate(firebase_credentials)
     firebase_admin.initialize_app(cred, {"projectId": project_id})
 
 # Firestore client
