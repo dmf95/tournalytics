@@ -32,3 +32,6 @@ assets/*.json
 
 # Ignore test notebooks
 *.ipynb
+
+# Ignore secrets.toml
+secrets.toml
