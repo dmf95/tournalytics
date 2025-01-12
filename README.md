@@ -26,17 +26,3 @@ Tournalytics is a dynamic and user-friendly platform designed to simplify tourna
 ### 🔐 Firebase Integration
 - **Authentication**: Secure account creation and login functionality.
 - **Database**: Store and retrieve tournament, league, and user data in real-time.
-
----
-
-## **Getting Started**
-
-### Prerequisites
-1. Python 3.8 or higher.
-2. Firebase credentials for authentication and database access.
-3. Environment variables stored in a `.env` file.
-
-### Environment Setup
-1. Install dependencies:
-   ```bash
-   pip install -r requirements.txt
