@@ -32,3 +32,6 @@ assets/*.json
 
 # Ignore test notebooks
 *.ipynb
+
+# Ignore others
+encoded_credentials.txt
