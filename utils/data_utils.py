@@ -3,7 +3,6 @@ import json
 import os
 from datetime import datetime, date
 import pandas as pd
-import sqlalchemy
 import streamlit as st
 import firebase_admin
 from firebase_admin import firestore
