@@ -17,8 +17,8 @@ tabs/__pycache__/
 assets/*.json
 
 # Ignore Streamlit configuration and sensitive files
-.streamlit/
-**/.streamlit/  # Extra safety for nested .streamlit directories
+.secrets/
+**/.secrets/  # Extra safety for nested .streamlit directories
 *.env  # Ignore environment variable files
 .env.*  # Ignore specific environment files (e.g., .env.production)
 .env
