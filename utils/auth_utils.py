@@ -3,7 +3,7 @@ from datetime import datetime
 import base64
 import json
 import firebase_admin
-from firebase_admin import credentials, firestore, auth
+from firebase_admin import credentials, firestore, auth, initialize_app
 from dotenv import load_dotenv
 import re
 import requests
@@ -13,21 +13,18 @@ from utils.general_utils import generate_unique_id
 # Load environment variables
 load_dotenv()
 
-# Get Base64-encoded credentials
-encoded_credentials = os.getenv("GOOGLE_CREDENTIALS_BASE64")
+# Retrieve the Base64-encoded credentials
+encoded_credentials = os.getenv("GOOGLE_APPLICATION_CREDENTIALS_BASE64")
 if not encoded_credentials:
-    raise ValueError("GOOGLE_CREDENTIALS_BASE64 is not set in the environment.")
+    raise ValueError("GOOGLE_APPLICATION_CREDENTIALS_BASE64 is not set in the environment.")
 
 # Decode the Base64 string
 decoded_credentials = base64.b64decode(encoded_credentials).decode("utf-8")
 
-# Parse the JSON credentials
+# Load the credentials into Firebase Admin SDK
 firebase_credentials = json.loads(decoded_credentials)
-
-# Initialize Firebase Admin SDK if not already initialized
-if not firebase_admin._apps:
-    cred = credentials.Certificate(firebase_credentials)
-    firebase_admin.initialize_app(cred)
+cred = credentials.Certificate(firebase_credentials)
+initialize_app(cred)
 
 # Firestore client
 db = firestore.client()
